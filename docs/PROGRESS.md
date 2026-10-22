@@ -7,7 +7,30 @@ pueda retomar el trabajo. El plan completo y las decisiones de arquitectura est�
 **Repo**: git inicializado localmente, rama de trabajo `dev` (nunca se hace commit/merge a
 `main` sin aprobación explícita del usuario, por instrucción global del usuario).
 
-## Fase actual: Fase 1 — Fundamentos (ver docs/PLAN.md)
+## Fase actual: Fase 2 — Biblioteca de entorno (ver docs/PLAN.md)
+
+Fase 1 (fundamentos) completa y aprobada por el usuario.
+
+### Assets de Fase 2
+- [x] `assets/vegetacion/hongo.py` — migrado en Fase 1, aprobado.
+- [x] `assets/vegetacion/arbol.py` — tronco lathe (base ensanchada/hundida) + copa
+      metaball fundida. Primera versión tenía un hueco entre copa y tronco (el
+      validador lo detectó correctamente como "flotando") y proporciones muy
+      achaparradas (copa tapaba casi todo el tronco) — corregido. Render de
+      aprobación generado (miniatura + turntable), verificado visualmente en 4
+      ángulos. **Pendiente de aprobación explícita del usuario.**
+- [ ] arbusto, roca, flor, pasto, piedras de camino, cerca, nube, montaña lejana —
+      no empezados todavía.
+
+### Lección reutilizable (de construir `arbol.py`)
+Al fundir una nube de metaballs contra otra pieza (p.ej. copa contra tronco), el
+centro de la nube debe ubicarse **ligeramente dentro** de la pieza vecina, no justo
+encima de su punta — un offset solo-positivo deja un hueco invisible a simple vista
+en un render estático pero que el validador detecta bien como "flotando". Aplica a
+cualquier asset futuro con piezas que deban fundirse (arbusto sobre el suelo, flores
+sobre un tallo, etc.).
+
+## Fase 1 — Fundamentos (completa, ver docs/PLAN.md para el detalle)
 
 ### Hecho
 - [x] Estructura base del proyecto creada (`assets/`, `characters/`, `scenes/`, `docs/`, `tools/`).
