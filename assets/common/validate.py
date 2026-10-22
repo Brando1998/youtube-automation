@@ -7,7 +7,8 @@ from mathutils import Vector
 from bbox import compute_bbox, _iter_mesh_objects
 
 MAX_TRIS_DEFAULT = 150_000
-GROUND_TOLERANCE = 0.03  # metros: cuánto puede estar la base por encima/bajo Z=0
+GROUND_TOLERANCE = 0.03  # metros: cuánto puede "flotar" la base por encima de Z=0
+SINK_TOLERANCE = 0.18    # metros: cuánto se puede hundir (regla 5: bases/raíces hundidas a propósito)
 
 
 def _tri_count(col):
@@ -76,7 +77,7 @@ def _floating_objects(col, ground_tolerance):
 
 
 def validate_asset(col, max_tris=MAX_TRIS_DEFAULT, ground_tolerance=GROUND_TOLERANCE,
-                    required_props=("tipo", "seed")):
+                    sink_tolerance=SINK_TOLERANCE, required_props=("tipo", "seed")):
     problems = []
 
     if col.asset_data is None:
@@ -95,8 +96,10 @@ def validate_asset(col, max_tris=MAX_TRIS_DEFAULT, ground_tolerance=GROUND_TOLER
     dims = mx - mn
     if dims.x <= 0 or dims.y <= 0 or dims.z <= 0:
         problems.append(f"bounding box degenerada: {tuple(round(v, 4) for v in dims)}")
-    if mn.z < -ground_tolerance:
-        problems.append(f"el asset se hunde bajo el suelo: min Z = {round(mn.z, 4)}")
+    # Tolerancia asimétrica: hundir la base a propósito está bien (regla 5, raíces/tallos
+    # hundidos), lo que no está bien es que quede claramente flotando por encima del suelo.
+    if mn.z < -sink_tolerance:
+        problems.append(f"el asset se hunde demasiado bajo el suelo: min Z = {round(mn.z, 4)}")
     elif mn.z > ground_tolerance:
         problems.append(f"el asset no toca el suelo (Z=0): min Z = {round(mn.z, 4)}")
 

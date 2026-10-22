@@ -14,6 +14,11 @@ PALETTE = {
     "hongo_laminas": [(0.0, "#D9C2A6"), (1.0, "#F1E3CF")],
     "hongo_tallo": [(0.0, "#D8C7AE"), (0.35, "#F2E7D6"), (1.0, "#FBF5EA")],
 
+    # --- vegetación: árbol ---
+    "arbol_copa_verde": [(0.0, "#3E7A34"), (0.55, "#59A04A"), (1.0, "#7FC262")],
+    "arbol_copa_otono": [(0.0, "#B4541F"), (0.5, "#D98A2E"), (1.0, "#EFC24B")],
+    "arbol_tronco": [(0.0, "#4A3421"), (0.4, "#6B4B2A"), (1.0, "#8A6238")],
+
     # --- terreno / diorama ---
     "tierra": "#5B3B28",
     "musgo": [(0.0, "#4E8A35"), (0.5, "#6FAA45"), (1.0, "#8DC25A")],
