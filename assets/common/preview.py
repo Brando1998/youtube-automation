@@ -1,7 +1,16 @@
 """Render de vista previa automático para cualquier asset: miniatura fija +
 turntable corto (cámara orbitando), con encuadre automático según el bounding box.
-Generaliza las funciones de diorama/estudio de hongo.py y zorrito.py."""
+Generaliza las funciones de diorama/estudio de hongo.py y zorrito.py.
+
+El build oficial de Blender (tarball de blender.org) no trae el encoder FFMPEG
+compilado (image_settings.file_format no incluye "FFMPEG"), así que el turntable
+se renderiza como secuencia PNG y se une a mp4 con un binario ffmpeg local
+(tools/ffmpeg/ffmpeg, estático, sin root) vía subprocess."""
 import math
+import os
+import shutil
+import subprocess
+import tempfile
 
 import bpy
 from mathutils import Vector
@@ -10,6 +19,8 @@ from bbox import compute_bbox
 from color import lin
 from geo import lathe_bm, to_obj
 from materials import principled
+
+FFMPEG_BIN = os.path.join(os.path.dirname(os.path.abspath(__file__)), "..", "..", "tools", "ffmpeg", "ffmpeg")
 
 
 def _studio_lighting(sc, target):
@@ -120,9 +131,18 @@ def render_preview(col, out_thumb, out_turntable=None, fast=True, turntable_fram
         bpy.context.preferences.edit.keyframe_new_interpolation_type = prev_interp
 
         _render_settings(sc, turntable_res, True, view_transform, look)
-        sc.render.image_settings.file_format = "FFMPEG"
-        sc.render.ffmpeg.format = "MPEG4"
-        sc.render.ffmpeg.codec = "H264"
-        sc.render.ffmpeg.constant_rate_factor = "MEDIUM"
-        sc.render.filepath = out_turntable
+        frames_dir = tempfile.mkdtemp(prefix="turntable_")
+        sc.render.image_settings.file_format = "PNG"
+        sc.render.filepath = os.path.join(frames_dir, "frame_")
         bpy.ops.render.render(animation=True)
+
+        if os.path.isfile(FFMPEG_BIN):
+            subprocess.run([
+                FFMPEG_BIN, "-y", "-framerate", str(sc.render.fps),
+                "-i", os.path.join(frames_dir, "frame_%04d.png"),
+                "-pix_fmt", "yuv420p", "-movflags", "+faststart", out_turntable,
+            ], check=True, capture_output=True)
+            shutil.rmtree(frames_dir, ignore_errors=True)
+        else:
+            print(f"AVISO: no se encontró ffmpeg en {FFMPEG_BIN}; "
+                  f"los frames del turntable quedaron en {frames_dir}")

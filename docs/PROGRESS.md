@@ -40,11 +40,17 @@ pueda retomar el trabajo. El plan completo y las decisiones de arquitectura est�
       fcurves directamente usando `bpy.context.preferences.edit.keyframe_new_interpolation_type`
       antes de insertar los keyframes del turntable.
 
-### En curso ahora mismo
-- [ ] Render final de aprobación del hongo migrado (miniatura calidad completa +
-      turntable mp4, 48 frames) corriendo en background. Pendiente: revisar el resultado
-      y mostrárselo al usuario para su visto bueno explícito (regla del usuario: **no
-      avanzar al siguiente asset sin aprobación**).
+- [x] ffmpeg estático instalado localmente sin root en `tools/ffmpeg/` (build de
+      johnvansickle.com). Necesario porque el build oficial de Blender (tarball de
+      blender.org) **no trae el encoder FFMPEG compilado** —
+      `image_settings.file_format` no incluye `"FFMPEG"` en esta build. El turntable se
+      renderiza como secuencia PNG a una carpeta temporal y se une a mp4 con este ffmpeg
+      local vía `subprocess` (ver `assets/common/preview.py`).
+- [x] Render final de aprobación del hongo migrado generado: miniatura a calidad
+      completa (`hongo_v1.png`) + turntable de 360° (`hongo_v1_turntable.mp4`, h264,
+      480×480, 48 frames/2s). Verificado visualmente en 4 ángulos del giro: fondo tipo
+      "dish" se mantiene limpio (sin horizonte/borde) en todo el recorrido de cámara.
+      **Pendiente de aprobación explícita del usuario** antes de pasar al siguiente asset.
 
 ### Próximo paso (una vez aprobado el hongo)
 Fase 2: migrar/crear el resto de la biblioteca de vegetación, un asset a la vez, cada uno
@@ -58,6 +64,8 @@ cerca, nube, montaña lejana. Ver contrato de asset en `docs/PLAN.md`.
   Afecta cómo se ven todos los colores hex del proyecto.
 - **Blender headless binario** (no el módulo `bpy` vía pip) — más aislamiento por proceso,
   mejor soporte GPU/EGL, es el patrón de producción estándar. Instalado localmente sin root.
+- **ffmpeg estático local** (`tools/ffmpeg/`, sin root) para codificar los turntables a mp4,
+  porque el build oficial de Blender no trae el encoder de video compilado.
 - **Cero gasto de AWS** en las fases de biblioteca de assets (Fases 1-5). Render en AWS
   (Batch + GPU spot) es Fase 6, requiere aprobación explícita antes de provisionar nada.
 - **Backend futuro (Fase 6, web app) en Python (FastAPI)**, no Node — porque el núcleo del
