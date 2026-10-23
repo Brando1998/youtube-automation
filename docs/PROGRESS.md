@@ -18,11 +18,10 @@ modelos de imagen propios de Amazon en Bedrock) están ambos en fin de vida** �
 opción viable hoy es **Stability AI** vía Bedrock (us-east-1/us-east-2/us-west-2,
 licencia comercial gratuita bajo $1M/año de ingresos).
 
-**Estado al momento de este cambio**: recién se estaba cerrando la aprobación del
-arbusto (Fase 2, estilo 3D) — ver sección "Fase 2" más abajo para ese detalle. El plan
-actualizado (`docs/PLAN.md`) está escrito y pendiente de que el usuario dé el visto
-bueno para arrancar la Fase A1 (spec de episodio + style guide + scaffold de Remotion,
-sin costo de AWS). Nada de la parte "ilustrado" tiene código todavía.
+**Estado**: usuario aprobó el arbusto (Fase 2 del estilo 3D queda cerrada como prueba de
+patrón, ver sección "Fase 2" más abajo) y dio luz verde para arrancar **Fase A1-A3** del
+estilo ilustrado (spec + style guide + scaffold de Remotion — nada de esto toca AWS).
+Fases A4+ (que sí generan costo) requieren aprobación aparte cuando se llegue ahí.
 
 ## Fase actual (estilo 3D): Fase 2 — Biblioteca de entorno (ver docs/PLAN.md)
 
@@ -56,9 +55,14 @@ y aplicará a cualquier categoría de asset, no solo personajes.
       el grosor del contorno. Este fix quedó en `assets/common/geo.py`
       (`use_quality_normals`, resolución de metaball balanceada en 0.02) y beneficia a
       cualquier asset futuro con piezas fundidas, incluidos personajes (Fase 5).
-      Render final de aprobación corriendo / pendiente de mostrar.
+      **Aprobado por el usuario** (miniatura + turntable verificados sin artefactos
+      desde ningún ángulo).
 - [ ] roca, flor, pasto, piedras de camino, cerca, nube, montaña lejana — **no se van
       a construir a mano ahora**, quedan para el pipeline de bocetos/instrucciones.
+
+**Fase 2 (estilo 3D) queda cerrada aquí** — cumplió su propósito de probar el patrón.
+Próximo trabajo del lado 3D: pipeline de bocetos→asset (cuando se priorice) o Fase 3
+(catálogo). Por ahora el foco pasa a la Fase A (estilo ilustrado) — ver arriba.
 
 ### Lección reutilizable (de construir `arbol.py`)
 Al fundir una nube de metaballs contra otra pieza (p.ej. copa contra tronco), el
