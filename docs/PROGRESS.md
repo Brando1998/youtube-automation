@@ -15,12 +15,14 @@ CLI). El plan siempre fue usar IAM role de instancia EC2 en vez de claves planas
 usuario confirmó que va a desplegar en EC2 — así que el orden real es: **primero la
 instancia, después Fase A4+**.
 
-**Guía de provisión escrita en `docs/EC2_SETUP.md`** (bucket S3, IAM role con permisos
-mínimos a Bedrock/Polly/S3, instancia `t3.medium` en `us-east-1`, security group,
-Elastic IP — importante porque la instancia se prende/apaga a diario). **La ejecuta el
-usuario** en su cuenta AWS (eligió esa opción explícitamente sobre dármela a mí o sobre
-un IAM user acotado). Sin esto no se puede seguir con A4 (Stability), A5 (Stability) ni
-A6 (Polly) — A1-A3 ya están hechas y no dependen de AWS.
+**Guía de provisión escrita en `docs/EC2_SETUP.md`** (IAM role con permisos mínimos a
+Bedrock/Polly, instancia `t3.medium` en `us-east-1`, security group, Elastic IP —
+importante porque la instancia se prende/apaga a diario). **Sin bucket S3 por decisión
+del usuario** (no quiere pagar por eso todavía) — los assets generados se guardan en el
+volumen EBS de la instancia; se puede agregar S3 más adelante sin romper nada. **La
+ejecuta el usuario** en su cuenta AWS (eligió esa opción explícitamente sobre dármela a
+mí o sobre un IAM user acotado). Sin esto no se puede seguir con A4 (Stability), A5
+(Stability) ni A6 (Polly) — A1-A3 ya están hechas y no dependen de AWS.
 
 **Próximo paso real**: esperar a que el usuario provisione la instancia según
 `docs/EC2_SETUP.md` y me dé acceso para desplegar (SSH, o que corra él los comandos).

@@ -5,22 +5,16 @@ Esta guía crea la infraestructura mínima para que la app pueda llamar a Bedroc
 quedó decidido en `docs/PLAN.md`. Región recomendada: **us-east-1** (cubre los modelos
 de Stability AI y Polly).
 
+**Sin S3 por ahora** (decisión del usuario, para no pagar por un bucket todavía): los
+assets generados (imágenes, audio, renders) se guardan en el volumen EBS de la propia
+instancia. Se puede agregar S3 más adelante sin romper nada — solo implica cambiar
+dónde escribe el código, no la arquitectura.
+
 Yo no tengo credenciales de AWS en esta máquina, así que estos pasos los corres tú
 (consola o CLI, como prefieras) y luego me das acceso SSH a la instancia ya creada
 para desplegar la app.
 
-## 1. Bucket S3 (assets generados, sobrevive aunque apagues la instancia)
-
-**Consola**: S3 → Create bucket → nombre único (p.ej. `tuempresa-youtube-automation`) → región `us-east-1` → dejar "Block all public access" activado (todo privado).
-
-**CLI equivalente**:
-```bash
-aws s3api create-bucket --bucket tuempresa-youtube-automation --region us-east-1
-aws s3api put-public-access-block --bucket tuempresa-youtube-automation \
-  --public-access-block-configuration BlockPublicAcls=true,IgnorePublicAcls=true,BlockPublicPolicy=true,RestrictPublicBuckets=true
-```
-
-## 2. IAM Role para la instancia (permisos mínimos, no claves planas)
+## 1. IAM Role para la instancia (permisos mínimos, no claves planas)
 
 **Consola**: IAM → Roles → Create role → Trusted entity: **AWS service → EC2** →
 siguiente, y pega esta política inline (Create inline policy → JSON) en vez de usar
@@ -44,26 +38,16 @@ políticas administradas amplias:
       "Effect": "Allow",
       "Action": ["polly:SynthesizeSpeech", "polly:StartSpeechSynthesisTask", "polly:DescribeVoices"],
       "Resource": "*"
-    },
-    {
-      "Sid": "S3Proyecto",
-      "Effect": "Allow",
-      "Action": ["s3:GetObject", "s3:PutObject", "s3:ListBucket"],
-      "Resource": [
-        "arn:aws:s3:::tuempresa-youtube-automation",
-        "arn:aws:s3:::tuempresa-youtube-automation/*"
-      ]
     }
   ]
 }
 ```
-(Cambia `tuempresa-youtube-automation` por el nombre real del bucket del paso 1. El
-permiso de Bedrock incluye `anthropic.*` porque el style guide y los specs de episodio
-usan Claude vía Bedrock también.)
+(El permiso de Bedrock incluye `anthropic.*` porque el style guide y los specs de
+episodio usan Claude vía Bedrock también.)
 
 Nombre del role: `youtube-automation-ec2-role`.
 
-## 3. Instancia EC2
+## 2. Instancia EC2
 
 **Consola**: EC2 → Launch instance
 - **AMI**: Ubuntu 24.04 LTS (o 22.04)
@@ -74,14 +58,16 @@ Nombre del role: `youtube-automation-ec2-role`.
 - **Security group**: nuevo, con:
   - SSH (22) — origen: **tu IP únicamente** (no 0.0.0.0/0)
   - HTTP (80) y HTTPS (443) — origen: 0.0.0.0/0 (la app pública)
-- **Storage**: 30-40GB gp3
-- **IAM instance profile**: el role `youtube-automation-ec2-role` del paso 2
+- **Storage**: 40-50GB gp3 (un poco más que antes, ya que ahora los assets generados
+  viven aquí en vez de en S3 — si más adelante se llena, se agranda el volumen o se
+  agrega S3 sin cambiar la arquitectura)
+- **IAM instance profile**: el role `youtube-automation-ec2-role` del paso 1
 - **Elastic IP** (⚠️ importante dado que vas a apagar/prender la instancia a diario):
   sin esto, la IP pública cambia cada vez que la reinicias y cualquier dominio que
   apunte ahí se rompe. Asigna una Elastic IP a la instancia después de crearla (EC2 →
   Elastic IPs → Allocate → Associate con tu instancia).
 
-## 4. Después de crear todo
+## 3. Después de crear todo
 
 Para que yo pueda desplegar la app ahí, necesito acceso SSH a la instancia. Cuando la
 tengas lista, compárteme (fuera del chat, no pegues la clave privada aquí):
@@ -91,3 +77,11 @@ tengas lista, compárteme (fuera del chat, no pegues la clave privada aquí):
   dando? Ambas opciones funcionan — dime cuál prefieres cuando lleguemos ahí.
 
 No voy a tocar nada de AWS hasta que confirmes que esta infraestructura ya existe.
+
+## Nota: respaldo de lo generado
+
+Sin S3, lo que se genere en la instancia solo existe ahí — si algún día se borra la
+instancia o su volumen, se pierde. Mientras el proyecto es chico esto es aceptable
+(y es exactamente el tradeoff que se eligió para no pagar por el bucket ahora), pero
+vale la pena recordarlo: conviene hacer backups periódicos manuales (o agregar S3 más
+adelante) antes de que haya contenido valioso que no se quiera perder.
