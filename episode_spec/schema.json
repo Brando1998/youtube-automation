@@ -1,0 +1,203 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "$id": "episode_spec/schema.json",
+  "title": "Episode Spec",
+  "description": "Spec de un episodio, independiente del estilo de render. Lo genera Claude a partir del guion. El campo `estilo` decide qué Renderer lo consume (BlenderRenderer o RemotionIllustratedRenderer); ambos leen la misma estructura. Los campos bajo `render.3d` / `render.ilustrado` de cada toma son específicos de cada estilo.",
+  "type": "object",
+  "required": ["id", "titulo", "estilo", "modo_voz", "fps", "personajes", "escenas"],
+  "properties": {
+    "id": { "type": "string", "description": "Identificador único del episodio, p.ej. 'ep-0001-prueba'." },
+    "titulo": { "type": "string" },
+    "estilo": { "type": "string", "enum": ["3d", "ilustrado"], "description": "Elegido por episodio. Decide qué Renderer se usa." },
+    "modo_voz": { "type": "string", "enum": ["narrador", "dialogos", "mixto"] },
+    "fps": { "type": "integer", "default": 30 },
+    "salidas": {
+      "type": "array",
+      "items": { "type": "string", "enum": ["16:9", "9:16"] },
+      "description": "Relaciones de aspecto a exportar desde el mismo spec.",
+      "default": ["9:16"]
+    },
+
+    "narrador": {
+      "type": ["object", "null"],
+      "description": "Voz del narrador (null si modo_voz es 'dialogos').",
+      "properties": {
+        "voz_polly": { "$ref": "#/$defs/voz_polly" }
+      }
+    },
+
+    "personajes": {
+      "type": "array",
+      "description": "Personajes que pueden hablar/aparecer en el episodio.",
+      "items": {
+        "type": "object",
+        "required": ["id", "nombre"],
+        "properties": {
+          "id": { "type": "string", "description": "Referencia usada en 'hablante' y en 'personajes_en_escena'." },
+          "nombre": { "type": "string" },
+          "voz_polly": { "$ref": "#/$defs/voz_polly" },
+          "color_subtitulo": { "type": "string", "description": "Hex, para subtítulos/globo de diálogo de este personaje." },
+          "asset_ref": {
+            "type": "string",
+            "description": "Referencia al catálogo de assets (assets/2d/catalogo.json o el equivalente 3D) — qué puppet/personaje 3D usar."
+          }
+        }
+      }
+    },
+
+    "escenas": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "required": ["id", "tomas"],
+        "properties": {
+          "id": { "type": "string" },
+          "fondo": { "type": "string", "description": "Referencia al catálogo de fondos (estilo ilustrado) o a la escena 3D." },
+          "tomas": {
+            "type": "array",
+            "items": { "$ref": "#/$defs/toma" }
+          }
+        }
+      }
+    }
+  },
+
+  "$defs": {
+    "voz_polly": {
+      "type": "object",
+      "required": ["voice_id", "engine", "lang"],
+      "properties": {
+        "voice_id": { "type": "string", "description": "p.ej. 'Lupe', 'Mia'." },
+        "engine": { "type": "string", "enum": ["standard", "neural"], "description": "Nunca 'generative' — ese motor no da speech marks de visema, necesarios para el lip sync." },
+        "lang": { "type": "string", "description": "p.ej. 'es-MX', 'es-US'." }
+      }
+    },
+
+    "linea": {
+      "type": "object",
+      "required": ["id", "hablante", "texto"],
+      "description": "Una línea de audio. Antes de sintetizar, solo trae texto/hablante/emocion. Después de pasar por Polly (o Whisper+Rhubarb si el audio vino grabado), se llena el campo `audio`.",
+      "properties": {
+        "id": { "type": "string" },
+        "hablante": { "type": "string", "description": "'narrador' o el id de un personaje." },
+        "texto": { "type": "string" },
+        "emocion": { "type": "string", "description": "Opcional, pista para tono de voz/expresión del puppet o rig." },
+        "audio": {
+          "type": ["object", "null"],
+          "default": null,
+          "properties": {
+            "fuente": { "type": "string", "enum": ["polly", "grabado"] },
+            "archivo": { "type": "string" },
+            "palabras": {
+              "type": "array",
+              "description": "Speech marks de palabra (Polly) o salida de Whisper — para subtítulos y eventos 'en_palabra'.",
+              "items": {
+                "type": "object",
+                "required": ["texto", "inicio_frame", "fin_frame"],
+                "properties": {
+                  "texto": { "type": "string" },
+                  "clave": { "type": "boolean", "default": false, "description": "Si se resalta como palabra clave en los subtítulos." },
+                  "inicio_frame": { "type": "integer" },
+                  "fin_frame": { "type": "integer" }
+                }
+              }
+            },
+            "visemas": {
+              "type": "array",
+              "description": "Speech marks de visema (Polly) o salida de Rhubarb — para lip sync, tanto del puppet 2D como del rig 3D.",
+              "items": {
+                "type": "object",
+                "required": ["tipo", "inicio_frame", "fin_frame"],
+                "properties": {
+                  "tipo": { "type": "string", "description": "Código de visema Polly (p,t,S,a,e,...) o forma Rhubarb (A-X)." },
+                  "inicio_frame": { "type": "integer" },
+                  "fin_frame": { "type": "integer" }
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+
+    "evento": {
+      "type": "object",
+      "required": ["tipo"],
+      "description": "Dispara un efecto en un frame fijo o atado a una palabra de una línea (p.ej. relámpago en 'anochecer').",
+      "properties": {
+        "tipo": { "type": "string" },
+        "en_frame": { "type": "integer" },
+        "en_palabra": {
+          "type": "object",
+          "properties": {
+            "linea": { "type": "string" },
+            "texto": { "type": "string" }
+          }
+        },
+        "params": { "type": "object" }
+      }
+    },
+
+    "toma": {
+      "type": "object",
+      "required": ["id", "duracion_frames", "lineas"],
+      "properties": {
+        "id": { "type": "string" },
+        "duracion_frames": { "type": "integer" },
+        "camara": {
+          "type": "object",
+          "properties": {
+            "zoom_inicial": { "type": "number", "default": 1.0 },
+            "zoom_final": { "type": "number", "default": 1.0 },
+            "golpe_zoom_en": { "type": "array", "items": { "type": "string" }, "description": "Tipos de evento que disparan un golpe de zoom (Camera2D)." }
+          }
+        },
+        "lineas": { "type": "array", "items": { "$ref": "#/$defs/linea" } },
+        "eventos": { "type": "array", "items": { "$ref": "#/$defs/evento" } },
+        "render": {
+          "type": "object",
+          "description": "Campos específicos de cada estilo — solo se usa el que coincide con `estilo` del episodio.",
+          "properties": {
+            "ilustrado": {
+              "type": "object",
+              "properties": {
+                "capas_fondo": { "type": "array", "items": { "type": "string" }, "description": "ids de capa dentro del fondo elegido (cielo/lejano/medio/suelo/primer_plano)." },
+                "personajes_en_escena": {
+                  "type": "array",
+                  "items": {
+                    "type": "object",
+                    "required": ["id", "posicion"],
+                    "properties": {
+                      "id": { "type": "string" },
+                      "posicion": { "type": "array", "items": { "type": "number" }, "minItems": 2, "maxItems": 2, "description": "[x,y] normalizado 0-1 dentro del cuadro." },
+                      "escala": { "type": "number", "default": 1.0 }
+                    }
+                  }
+                },
+                "efectos": {
+                  "type": "object",
+                  "description": "On/off y parámetros por efecto de la biblioteca Remotion (ver docs/PLAN.md). Los presets por defecto deben ser amigables para niños.",
+                  "properties": {
+                    "humo": { "type": "boolean", "default": false },
+                    "niebla": { "type": "boolean", "default": false },
+                    "lluvia": { "type": "boolean", "default": false },
+                    "particulas": { "type": ["string", "null"], "enum": ["luciernagas", "brasas", "nieve", "polvo", null], "default": null },
+                    "grano": { "type": "boolean", "default": true },
+                    "vineta": { "type": "boolean", "default": true },
+                    "color_grade": { "type": "string", "default": "calido" }
+                  }
+                }
+              }
+            },
+            "3d": {
+              "type": "object",
+              "properties": {
+                "scene_spec_ref": { "type": ["string", "null"], "description": "Referencia al scene spec de la Fase 4 (compositor de escenas 3D)." }
+              }
+            }
+          }
+        }
+      }
+    }
+  }
+}

@@ -1,0 +1,38 @@
+{
+  "version": 1,
+  "nombre": "Estilo ilustrado del proyecto — cómic infantil 2.5D",
+  "referencia_tecnica": "docs/reference/cabana-lucia.html (técnica de capas/parallax/efectos; NO el tono de ánimo — esa demo es de misterio solo como ejemplo técnico)",
+
+  "descripcion": "Ilustración tipo cómic con contorno de tinta grueso y constante, rellenos planos con degradados suaves (nunca fotorrealista), proporciones amigables y redondeadas tanto en personajes como en elementos del entorno. Pensado para niños: cálido, curioso, acogedor — incluso las escenas nocturnas deben sentirse seguras, no inquietantes.",
+
+  "linea": {
+    "color": "#05070A",
+    "grosor_base_px_en_canvas_540x960": 3,
+    "notas": "Grosor constante tipo 'comic ink', sin variación de presión. Se mantiene igual en siluetas grandes y en detalles finos (a diferencia del contorno 3D, que solo va en siluetas grandes)."
+  },
+
+  "paleta": {
+    "cielo_noche": ["#060A15", "#16213A", "#2D3B57"],
+    "cielo_dia": ["#8FD0F5", "#C9ECFF", "#FFF6E0"],
+    "calido_luz": ["#FFD36A", "#FFC45E", "#F2B33D"],
+    "frio_sombra": ["#A0B9E0", "#7890C0"],
+    "follaje": ["#111B1A", "#17261E", "#2B3B24"],
+    "piel_calida": ["#E8B08B", "#EDB896", "#E3A985"],
+    "acento": "#F2B33D",
+    "notas": "Paleta base; cada fondo/personaje puede introducir tonos propios pero debe anclarse a estas familias para que todo el episodio se vea consistente."
+  },
+
+  "sombreado": "Degradados suaves de 2-3 paradas por forma (ver ramp_mat del lado 3D como equivalente conceptual), nunca sombreado fotorrealista ni trazado de luz físicamente preciso — el objetivo es lectura clara a distancia en móvil, no realismo.",
+
+  "animo_por_defecto": {
+    "permitido": ["calma", "curiosidad", "alegria", "sorpresa_amigable", "aventura", "asombro"],
+    "evitar_por_defecto": ["terror", "gore", "amenaza_explicita", "oscuridad_opresiva"],
+    "notas": "Lluvia/niebla/relámpago/sombras son herramientas de clima neutrales (p.ej. una tormenta de aventura) — no deben usarse para generar miedo. Los presets de efectos (ver docs/PLAN.md) vienen apagados o en modo suave por defecto; si una escena puntual necesita más intensidad, se ajusta explícitamente en esa toma, no en el default del proyecto."
+  },
+
+  "prompt_template": "comic book illustration, thick dark ink outlines ({linea_color}), flat cel-shaded colors with soft 2-3 stop gradients, rounded friendly proportions, warm inviting children's-book mood, {paleta_dominante} color palette, {sujeto}, clean vector-like shapes, no photorealism, no text, no watermark",
+
+  "negative_prompt": "photorealistic, realistic skin texture, horror, gore, blood, scary, grotesque, disturbing, text, watermark, signature, extra limbs, deformed hands, low quality, blurry",
+
+  "uso": "Este archivo se pasa como contexto fijo en cada llamada de generación de imagen (Fase A4/A5) para mantener consistencia de estilo entre personajes y fondos distintos. Requiere tu aprobación antes de usarse en la primera llamada real (Fase A4 — genera costo de AWS)."
+}

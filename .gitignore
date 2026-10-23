@@ -1,6 +1,8 @@
 tools/blender/
 tools/ffmpeg/
 .claude/
+node_modules/
+apps/remotion-ilustrado/out/
 *.blend1
 __pycache__/
 *.pyc
