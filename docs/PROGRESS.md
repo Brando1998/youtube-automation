@@ -11,16 +11,37 @@ pueda retomar el trabajo. El plan completo y las decisiones de arquitectura est�
 
 Fase 1 (fundamentos) completa y aprobada por el usuario.
 
-### Assets de Fase 2
+### Cambio de alcance (importante, decisión del usuario)
+**La biblioteca de assets NO tiene que completarse a mano ahora.** El resto de los
+assets (roca, flor, pasto, piedras de camino, cerca, nube, montaña lejana, y
+cualquier otro que haga falta) se construirá más adelante a partir de **bocetos e
+instrucciones que el usuario suba a la app** — no haciendo que Claude escriba cada
+generador `crear_<asset>()` a mano uno por uno. Los 3 assets de vegetación ya hechos
+(hongo, árbol, arbusto) cumplieron su propósito: **probar que el contrato/patrón
+funciona** (módulos comunes, validador, vista previa automática, el fix de costuras
+en pliegues cóncavos). Eso es lo valioso de esta fase, no la lista completa de
+vegetación. El pipeline de "boceto/instrucción → spec → builder genérico" (ya
+descrito en `docs/PLAN.md` para personajes, sección Fase 5) es el que falta construir
+para que el usuario pueda pedir nuevos assets sin que cada uno se escriba a mano —
+y aplicará a cualquier categoría de asset, no solo personajes.
+
+### Assets de Fase 2 (prueba de patrón, no biblioteca exhaustiva)
 - [x] `assets/vegetacion/hongo.py` — migrado en Fase 1, aprobado.
 - [x] `assets/vegetacion/arbol.py` — tronco lathe (base ensanchada/hundida) + copa
       metaball fundida. Primera versión tenía un hueco entre copa y tronco (el
       validador lo detectó correctamente como "flotando") y proporciones muy
-      achaparradas (copa tapaba casi todo el tronco) — corregido. Render de
-      aprobación generado (miniatura + turntable), verificado visualmente en 4
-      ángulos. **Pendiente de aprobación explícita del usuario.**
-- [ ] arbusto, roca, flor, pasto, piedras de camino, cerca, nube, montaña lejana —
-      no empezados todavía.
+      achaparradas (copa tapaba casi todo el tronco) — corregido. **Aprobado por el
+      usuario.**
+- [x] `assets/vegetacion/arbusto.py` — masa de hojas fundida sin tronco. Primera
+      versión se hundía demasiado bajo el suelo y luego mostraba una costura oscura
+      en un pliegue cóncavo entre lóbulos (el contorno/Solidify se auto-intersectaba
+      ahí) — corregido dando más solape entre lóbulos al generarlos, no solo bajando
+      el grosor del contorno. Este fix quedó en `assets/common/geo.py`
+      (`use_quality_normals`, resolución de metaball balanceada en 0.02) y beneficia a
+      cualquier asset futuro con piezas fundidas, incluidos personajes (Fase 5).
+      Render final de aprobación corriendo / pendiente de mostrar.
+- [ ] roca, flor, pasto, piedras de camino, cerca, nube, montaña lejana — **no se van
+      a construir a mano ahora**, quedan para el pipeline de bocetos/instrucciones.
 
 ### Lección reutilizable (de construir `arbol.py`)
 Al fundir una nube de metaballs contra otra pieza (p.ej. copa contra tronco), el
@@ -75,10 +96,13 @@ sobre un tallo, etc.).
       "dish" se mantiene limpio (sin horizonte/borde) en todo el recorrido de cámara.
       **Pendiente de aprobación explícita del usuario** antes de pasar al siguiente asset.
 
-### Próximo paso (una vez aprobado el hongo)
-Fase 2: migrar/crear el resto de la biblioteca de vegetación, un asset a la vez, cada uno
-con su propio render de aprobación: árbol, arbusto, roca, flor, pasto, piedras de camino,
-cerca, nube, montaña lejana. Ver contrato de asset en `docs/PLAN.md`.
+### Próximo paso
+Fase 2 (como prueba de patrón) está esencialmente completa con hongo+árbol+arbusto.
+Pendiente: confirmar con el usuario hacia dónde seguir — candidatos: (a) Fase 3
+(catálogo JSON) con estos 3 assets como semilla, (b) construir ya el pipeline de
+boceto/instrucción → spec → builder genérico (lo que destraba que el usuario pida
+nuevos assets desde la app), u (c) otra prioridad que el usuario defina. No asumir —
+preguntar.
 
 ## Decisiones tomadas (no re-discutir salvo que el usuario pida cambiarlas)
 
