@@ -29,8 +29,8 @@ políticas administradas amplias:
       "Effect": "Allow",
       "Action": ["bedrock:InvokeModel", "bedrock:InvokeModelWithResponseStream"],
       "Resource": [
-        "arn:aws:bedrock:us-east-1::foundation-model/stability.*",
-        "arn:aws:bedrock:us-east-1::foundation-model/anthropic.*"
+        "arn:aws:bedrock:us-east-1::foundation-model/anthropic.*",
+        "arn:aws:bedrock:us-west-2::foundation-model/stability.*"
       ]
     },
     {
@@ -43,7 +43,12 @@ políticas administradas amplias:
 }
 ```
 (El permiso de Bedrock incluye `anthropic.*` porque el style guide y los specs de
-episodio usan Claude vía Bedrock también.)
+episodio usan Claude vía Bedrock también. **Nota real de despliegue**: Stability AI
+en Bedrock solo está disponible en `us-west-2` — se verificó en la documentación oficial
+de AWS al momento de la Fase A4, no asumir que está en `us-east-1` aunque la instancia
+viva ahí. Por eso el ARN de `stability.*` apunta a `us-west-2` mientras el resto del
+proyecto corre en `us-east-1` — las llamadas a Bedrock son HTTPS normales, no hace
+falta que la región coincida con la de la instancia.)
 
 Nombre del role: `youtube-automation-ec2-role`.
 
