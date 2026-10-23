@@ -7,7 +7,24 @@ pueda retomar el trabajo. El plan completo y las decisiones de arquitectura est�
 **Repo**: git inicializado localmente, rama de trabajo `dev` (nunca se hace commit/merge a
 `main` sin aprobación explícita del usuario, por instrucción global del usuario).
 
-## Fase actual: Fase 2 — Biblioteca de entorno (ver docs/PLAN.md)
+## ⚠️ Cambio de alcance mayor: dos estilos visuales en paralelo
+
+El proyecto ahora tiene **dos estilos de producción elegibles por episodio**: "3d"
+(todo lo de abajo, sin cambios) e **"ilustrado"** (2.5D con Remotion — nuevo, ver
+`docs/PLAN.md` sección "Extensión: estilo ilustrado 2.5D"). El estilo ilustrado sale
+**primero** a producción por ser más rápido de hacer; el 3D sigue en paralelo, no se
+abandona. Hallazgo clave de investigación: **Titan Image Generator y Nova Canvas (los
+modelos de imagen propios de Amazon en Bedrock) están ambos en fin de vida** — la
+opción viable hoy es **Stability AI** vía Bedrock (us-east-1/us-east-2/us-west-2,
+licencia comercial gratuita bajo $1M/año de ingresos).
+
+**Estado al momento de este cambio**: recién se estaba cerrando la aprobación del
+arbusto (Fase 2, estilo 3D) — ver sección "Fase 2" más abajo para ese detalle. El plan
+actualizado (`docs/PLAN.md`) está escrito y pendiente de que el usuario dé el visto
+bueno para arrancar la Fase A1 (spec de episodio + style guide + scaffold de Remotion,
+sin costo de AWS). Nada de la parte "ilustrado" tiene código todavía.
+
+## Fase actual (estilo 3D): Fase 2 — Biblioteca de entorno (ver docs/PLAN.md)
 
 Fase 1 (fundamentos) completa y aprobada por el usuario.
 

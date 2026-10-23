@@ -1,4 +1,11 @@
-# Plan: Biblioteca de assets 3D (Blender) → composición de escenas → video infantil
+# Plan: Pipeline de episodios infantiles — dos estilos visuales (3D y 2.5D ilustrado)
+
+> **Actualización (tercer cambio de alcance):** el proyecto ahora tiene DOS estilos de
+> producción, elegibles por episodio — "3d" (todo lo de este documento hasta la sección
+> "Extensión") y "ilustrado" (2.5D con Remotion, ver sección **"Extensión: estilo
+> ilustrado 2.5D"** al final). El estilo ilustrado sale primero a producción por ser más
+> rápido; el 3D sigue su curso en paralelo, sin abandonarse. Todo lo de abajo hasta la
+> Extensión sigue vigente tal cual para el estilo "3d".
 
 ## Contexto
 
@@ -82,3 +89,172 @@ Aquí se retoman, sin cambios de fondo respecto al plan anterior (ya investigado
 - `scenes/compositor.py` (Fase 4).
 - `characters/builder.py`, `characters/rig.py`, `characters/acciones/*.py` (Fase 5).
 - `apps/web/`, `packages/publish/`, `packages/lipsync/` — retomados del plan anterior (Fase 6).
+
+---
+
+# Extensión: estilo ilustrado 2.5D (Remotion)
+
+## Contexto
+
+El estilo "3d" (todo lo anterior) sigue vigente y no se toca. Se agrega un segundo
+estilo, **"ilustrado"**: ilustración tipo cómic separada en capas, animada en Remotion
+con cámara 2.5D (parallax por profundidad), más rápido de producir que el 3D. El
+usuario elige el estilo por episodio. El estilo ilustrado sale primero a producción.
+
+**Referencia de estilo y técnica**: `docs/reference/cabana-lucia.html` (copiar desde
+`/home/brando/Downloads/cabana-lucia.html`) — demo funcional en SVG+Canvas+JS que ya
+resuelve, de forma 100% determinista por número de frame (requisito de Remotion):
+cámara 2.5D por capa (`camFor(d)`, cada capa `Lx` tiene una profundidad `d` y se mueve
+proporcional a ella), luces con parpadeo por ruido (linterna, ventana, luna), personaje
+animado por partes (respiración = traslación senoidal, parpadeo = escala por tramos,
+mirada/giro de cabeza = rotación con `smooth()` ante un evento, balanceo de la linterna
+= rotación senoidal), partículas (luciérnagas con deriva+brillo), humo (bocanadas con
+edad cíclica `(frame+i*L/26)%L`), niebla en capas, lluvia+relámpago sincronizados a
+palabras de la narración, gradación de color + viñeta + grano, y subtítulos palabra por
+palabra con resaltado de palabras clave. Todo se traduce directo a componentes Remotion
+(`useCurrentFrame()` en vez de `frame` global, mismas fórmulas). **La demo es de
+misterio solo como ejemplo técnico — los presets por defecto del proyecto deben ser
+amigables para niños, sin nada tipo terror.**
+
+## Hallazgo de investigación: generación de imágenes en Bedrock (Oct 2026)
+
+Verificado antes de asumir nada, como se pidió:
+- **Titan Image Generator** (Amazon): fin de vida 30 jun 2026 — ya no funciona.
+- **Nova Canvas** (Amazon): fin de vida 30 sep 2026 — ya no funciona.
+- **Ningún modelo de imagen propio de Amazon funciona hoy en Bedrock.**
+- **Opción viable: Stability AI** (Stable Image Ultra, Core, SD3.5 Large) vía Bedrock,
+  disponible en `us-east-1`, `us-east-2`, `us-west-2`. Precio: Ultra ~$0.08/imagen,
+  Core ~$0.03/imagen. Licencia Community de Stability: **gratuita para uso comercial
+  por debajo de $1M/año de ingresos** (aplica a este proyecto). También ofrece ~13
+  "primitivas" de edición (inpaint, erase/fondo transparente, outpaint, search-and-
+  recolor, upscale) útiles para el pipeline de partes de personaje.
+- Esto reemplaza cualquier supuesto anterior sobre Titan/Nova Canvas en el plan previo.
+
+## Arquitectura compartida entre los dos estilos
+
+1. **Episode spec (JSON, independiente del estilo)**: Claude convierte el guion en un
+   spec con escenas → tomas → líneas (hablante, texto, voz asignada, emoción opcional)
+   → eventos (p.ej. "en la palabra X → relámpago") → duración. Campo `estilo`: `"3d"` |
+   `"ilustrado"`, elegido por episodio. El mismo spec debe poder renderizarse con
+   cualquiera de los dos estilos (los campos específicos de estilo quedan bajo una
+   sub-clave `render.3d` / `render.ilustrado` por toma).
+2. **Interfaz `Renderer`**: `render(spec) -> video`, dos implementaciones:
+   - `BlenderRenderer` (ya planeado arriba, Fases 2-6, sin cambios).
+   - `RemotionIllustratedRenderer` (nuevo, esta extensión).
+3. **Modo de voz** (por episodio, campo `modo_voz`): `"narrador"` | `"dialogos"` |
+   `"mixto"`. Cada línea del spec trae `hablante` (`"narrador"` o id de personaje),
+   `texto`, `voz`, `emocion` opcional.
+4. **Voz y lip sync (compartido entre estilos)**:
+   - TTS: **Amazon Polly**, una voz por personaje + una para narrador, con
+     `SpeechMarkTypes=["word","viseme"]` (palabra → subtítulos/eventos; visema → lip
+     sync). *(Esto genera costo AWS — pedir aprobación antes de la primera llamada real.)*
+   - Audio grabado: **Whisper** para tiempos de palabra, **Rhubarb Lip Sync** para
+     formas de boca — ya investigado y vigente del plan original, sin cambios.
+   - Hablando un personaje: lip sync + gesto sutil + subtítulo con color del personaje
+     (o globo de diálogo, configurable). Hablando el narrador: subtítulos palabra por
+     palabra estilo la demo.
+
+## Assets del estilo ilustrado (categoría nueva `"2d"` en la misma biblioteca)
+
+Mismo espíritu de contrato que los assets 3D (determinista, con metadatos, con
+aprobación manual antes de usarse) pero para recursos 2D:
+
+- **Personajes como "puppets" por partes**: cuerpo, cabeza, ojos abiertos/cerrados,
+  cejas, bocas por visema (mínimo: reposo, A, E, O, M/B/P, F/V, L — igual que Rhubarb),
+  brazos/objetos con punto de pivote. Se guarda un JSON por personaje: lista de partes
+  (imagen, pivote, orden de capa).
+- **Flujo propuesto para construir un personaje** (a partir del arte que sube el
+  usuario), con aprobación tuya en cada paso:
+  1. Subes una imagen/boceto de referencia.
+  2. Claude (visión, Bedrock) + un **style guide del proyecto** (prompt base, paleta,
+     grosor de línea — para que todo el arte generado se vea consistente) genera una
+     "hoja de personaje" limpia vía Stability **image-to-image** condicionada a tu
+     boceto (conserva pose/parecido, aplica el estilo). **Apruebas la hoja antes de
+     seguir.**
+  3. Cada parte requerida (cuerpo, cabeza, ojos, cejas, bocas por visema, props con
+     pivote) se genera como su **propia llamada** de image-to-image/inpaint sobre la
+     hoja aprobada, con fondo transparente (primitiva "erase"/background removal de
+     Stability) — **recomendado en vez de segmentar la hoja completa con un modelo tipo
+     SAM**, porque evita auto-hospedar un segmentador aparte (SAM es open-source/Apache
+     2.0 pero necesita su propia GPU) y da más control por parte. Documento SAM como
+     alternativa futura si la calidad de generar-por-parte no alcanza, no como el
+     camino por defecto.
+  4. Validador equivalente al de assets 3D (fondo transparente real, tamaño razonable,
+     todas las partes requeridas presentes) + render de vista previa (la hoja completa
+     armada) para tu aprobación antes de usar el personaje en cualquier escena.
+- **Fondos en capas** (cielo, lejano, medio, suelo, primer plano — como `L0`-`L5` de la
+  demo), cada capa con su profundidad y sus puntos de luz/emisión de partículas
+  (chimenea, ventana, etc.) marcados en el JSON de la capa.
+- Todo esto vive en `assets/2d/personajes/`, `assets/2d/fondos/`, con su propio
+  catálogo JSON — mismo rol que el catálogo 3D de la Fase 3, pero para este estilo.
+
+## Biblioteca de efectos Remotion (nueva, Node/TypeScript)
+
+Primer código Node/TS del proyecto (todo lo anterior es Python/bpy) — vive en algo como
+`apps/remotion-ilustrado/`. Componentes, mapeados 1:1 desde la demo:
+
+| Componente | De la demo | Config desde el spec |
+|---|---|---|
+| `Camera2D` | `camFor(d)`, `withCam` | zoom base, golpe de zoom por evento |
+| `ParallaxLayer` | `LAYERS`, transform por capa | profundidad `d` por capa |
+| `FlickerLight` | `fl(f,s)`, luz de linterna/ventana/luna | posición, color, intensidad base |
+| `Particles` | `FLIES` (luciérnagas) | preset: luciérnagas/brasas/nieve/polvo |
+| `Smoke` | bocanadas de humo cíclicas | origen, intensidad |
+| `Fog` | `FOGS` en 2 capas | profundidades, velocidad |
+| `Rain` | `DROPS` | intensidad, ángulo |
+| `Lightning` | `BOLT`/`BRANCH`, destello sincronizado | palabra(s) disparadoras |
+| `ColorGrade` | filtro CSS + viñeta radial | preset del style guide |
+| `Grain` | `GRAIN` (ruido animado) | intensidad |
+| `Captions` | `caption(f)`, resaltado de clave | lista de palabras+tiempos del spec |
+| `SpeechBubble` | (nuevo, no está en la demo) | color por personaje, texto |
+| `CharacterPuppet` | `breath`/`swing`/`pony`/`head`/`eyes`/`brows` | partes del puppet + eventos de lip sync |
+
+Todo configurable por toma desde el spec, con eventos atados a palabras (igual que
+`LIGHT=[at("NOCHE"), ...]` en la demo). Salida en 16:9 y 9:16 desde el mismo spec.
+**Presets por defecto amigables para niños** (sin preset de "terror" aunque la demo lo
+use como ejemplo).
+
+## Fases propuestas (estilo ilustrado)
+
+| Fase | Qué incluye | Costo AWS |
+|---|---|---|
+| **A1** | Copiar `cabana-lucia.html` a `docs/reference/`; definir el **episode spec** (JSON) compartido entre estilos | Ninguno |
+| **A2** | Style guide del proyecto (prompt base, paleta, grosor de línea) — propuesta para tu aprobación antes de generar nada | Ninguno |
+| **A3** | Scaffold de `apps/remotion-ilustrado/` + componentes base (`Camera2D`, `ParallaxLayer`, `Captions`) portados de la demo | Ninguno |
+| **A4** | Pipeline de personaje 2D: 1 personaje de prueba desde una imagen tuya → hoja → partes → aprobación | **Sí** (Stability image-gen, ~$1-2 para un personaje completo) — pregunto antes de la primera llamada |
+| **A5** | Fondo en capas para la escena de prueba (5 capas) | **Sí** (Stability, similar costo bajo) — mismo aviso |
+| **A6** | Voz: narrador + 1 línea de diálogo con lip sync para la escena de 15s | **Sí** (Polly, costo mínimo, fracciones de centavo) — mismo aviso |
+| **A7** | Componer y renderizar localmente la escena de 15s completa (modo mixto, narrador + diálogo con lip sync) — recorrido de punta a punta | Ninguno (render es local) |
+
+No se avanza de fase sin visto bueno explícito, igual que en el estilo 3D. El trabajo
+3D (Fases 1-6 de arriba) sigue su curso en paralelo sin interrupciones.
+
+## Qué se comparte vs. qué es nuevo
+
+**Compartido** (una sola vez, sirve para ambos estilos): episode spec + su generación
+con Claude, modo de voz, Polly+Whisper+Rhubarb, la disciplina de aprobación manual por
+asset, estructura general del repo (`docs/PROGRESS.md` sigue siendo el registro único).
+
+**Nuevo, solo para "ilustrado"**: categoría de asset `"2d"` (personajes-puppet +
+fondos en capas), pipeline de generación de imágenes (Stability vía Bedrock), style
+guide del proyecto, y toda la app Remotion/Node (primer código no-Python del repo).
+
+## Verificación
+
+- A3: los componentes base renderizan localmente (Remotion Studio o render directo) con
+  datos de prueba, sin depender todavía de assets generados.
+- A4: la hoja de personaje y cada parte se revisan visualmente contra el style guide
+  antes de aprobarse; el validador confirma fondo transparente real y partes completas.
+- A7: reproducir el mp4 de 15s y confirmar sincronía de labios en la línea de diálogo,
+  subtítulos palabra por palabra correctos, y que los efectos (parallax mínimo, al
+  menos) se vean coherentes con la demo de referencia.
+
+## Archivos/rutas críticas (ilustrado)
+
+- `docs/reference/cabana-lucia.html` — referencia de técnica y estilo.
+- `episode_spec/schema.json` (o similar) — spec compartido entre estilos.
+- `assets/2d/personajes/<nombre>/{hoja.png, partes/*.png, puppet.json}`
+- `assets/2d/fondos/<nombre>/{capas/*.png, fondo.json}`
+- `assets/2d/catalogo.json`
+- `apps/remotion-ilustrado/src/components/{Camera2D,ParallaxLayer,FlickerLight,Particles,Smoke,Fog,Rain,Lightning,ColorGrade,Grain,Captions,SpeechBubble,CharacterPuppet}.tsx`
+- `style_guide.json` (prompt base, paleta, grosor de línea)
