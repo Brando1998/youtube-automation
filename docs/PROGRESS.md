@@ -7,25 +7,38 @@ pueda retomar el trabajo. El plan completo y las decisiones de arquitectura est�
 **Repo**: git inicializado localmente, rama de trabajo `dev` (nunca se hace commit/merge a
 `main` sin aprobación explícita del usuario, por instrucción global del usuario).
 
-## 🔴 Bloqueado: falta infraestructura AWS (EC2 + IAM role)
+## ✅ Infraestructura AWS lista (EC2 + IAM role)
 
-El usuario pidió avanzar con todas las fases restantes (A4-A7), pero **esta máquina no
-tiene ninguna credencial de AWS configurada** (sin `~/.aws/`, sin env vars, sin AWS
-CLI). El plan siempre fue usar IAM role de instancia EC2 en vez de claves planas, y el
-usuario confirmó que va a desplegar en EC2 — así que el orden real es: **primero la
-instancia, después Fase A4+**.
+Resuelto. El usuario provisionó todo siguiendo `docs/EC2_SETUP.md`:
 
-**Guía de provisión escrita en `docs/EC2_SETUP.md`** (IAM role con permisos mínimos a
-Bedrock/Polly, instancia `t3.medium` en `us-east-1`, security group, Elastic IP —
-importante porque la instancia se prende/apaga a diario). **Sin bucket S3 por decisión
-del usuario** (no quiere pagar por eso todavía) — los assets generados se guardan en el
-volumen EBS de la instancia; se puede agregar S3 más adelante sin romper nada. **La
-ejecuta el usuario** en su cuenta AWS (eligió esa opción explícitamente sobre dármela a
-mí o sobre un IAM user acotado). Sin esto no se puede seguir con A4 (Stability), A5
-(Stability) ni A6 (Polly) — A1-A3 ya están hechas y no dependen de AWS.
+- **Instancia**: `youtube-automation`, Ubuntu 26.04.1 LTS, `t3.medium`, región
+  `us-east-1`, 50GB gp3. **IP fija (Elastic IP): `52.5.177.143`** — acceso SSH
+  confirmado con `Downloads/KEYS/youtube-automation.pem` (usuario `ubuntu`).
+- **IAM role** `youtube-automation-ec2-role` adjunto, confirmado vía metadata (IMDSv2)
+  desde la instancia. Policy inline `bedrock-polly-inline` con `bedrock:InvokeModel` +
+  `polly:SynthesizeSpeech`.
+- **Security group**: SSH abierto a `0.0.0.0/0` por decisión del usuario (la IP de
+  salida de esta sesión rotaba y rompía la regla "solo mi IP"; mitigado porque el
+  acceso sigue siendo solo por llave privada, no hay login por contraseña). HTTP/HTTPS
+  abiertos. Sin bucket S3 (decisión de costo del usuario) — assets en el volumen EBS.
+- **Hallazgo importante corregido en el camino**: Stability AI en Bedrock **solo existe
+  en `us-west-2`**, no en `us-east-1` donde vive la instancia — confirmado con la
+  documentación oficial de AWS después de que el primer intento fallara. El IAM policy
+  quedó con `stability.*` apuntando a `us-west-2` y `anthropic.*` a `us-east-1` — esto
+  funciona bien porque las llamadas a Bedrock son HTTPS normales, no hace falta que la
+  región de la instancia coincida con la del modelo. El usuario preguntó si convenía
+  mover todo a la región de sus otros proyectos (Docubot, `us-east-2`) — **no**, esa
+  región tampoco tiene Stability, así que no hubiera resuelto nada y se descartó.
+- **Python**: venv en `~/youtube-automation/.venv` en la instancia, con `boto3` y
+  `pillow` instalados.
+- **Verificado end-to-end**: llamada real a `stability.stable-image-core-v1:1` desde
+  la instancia generó una imagen de prueba correctamente (círculo rojo simple) —
+  confirma que IAM role + región + SDK están bien configurados antes de gastar en algo
+  real.
 
-**Próximo paso real**: esperar a que el usuario provisione la instancia según
-`docs/EC2_SETUP.md` y me dé acceso para desplegar (SSH, o que corra él los comandos).
+**Próximo paso**: desplegar el código del repo a la instancia (por ahora vía `rsync`/
+`scp`, no hay git remoto) y generar ahí el personaje de prueba real (Lucía) para la
+Fase A4, usando `style_guide.json`.
 
 ## ⚠️ Cambio de alcance mayor: dos estilos visuales en paralelo
 
