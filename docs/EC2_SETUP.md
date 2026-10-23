@@ -2,8 +2,10 @@
 
 Esta guía crea la infraestructura mínima para que la app pueda llamar a Bedrock
 (Stability AI, Polly) sin usar claves planas — todo vía IAM role de instancia, como
-quedó decidido en `docs/PLAN.md`. Región recomendada: **us-east-1** (cubre los modelos
-de Stability AI y Polly).
+quedó decidido en `docs/PLAN.md`. La instancia vive en **us-east-1** (cubre Polly y
+Claude vía Bedrock), pero las llamadas a Stability AI van a **us-west-2** — es el
+único lugar donde ese modelo existe en Bedrock hoy; la instancia no necesita estar en
+la misma región que el modelo que invoca.
 
 **Sin S3 por ahora** (decisión del usuario, para no pagar por un bucket todavía): los
 assets generados (imágenes, audio, renders) se guardan en el volumen EBS de la propia
