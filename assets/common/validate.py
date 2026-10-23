@@ -6,7 +6,9 @@ from mathutils import Vector
 
 from bbox import compute_bbox, _iter_mesh_objects
 
-MAX_TRIS_DEFAULT = 150_000
+MAX_TRIS_DEFAULT = 300_000  # holgado a propósito: es para render offline en Cycles,
+# no realtime — esto solo debe atrapar errores reales (p.ej. resolución de metaball
+# mal puesta), no asustar por un árbol o personaje normal con buen detalle
 GROUND_TOLERANCE = 0.03  # metros: cuánto puede "flotar" la base por encima de Z=0
 SINK_TOLERANCE = 0.18    # metros: cuánto se puede hundir (regla 5: bases/raíces hundidas a propósito)
 

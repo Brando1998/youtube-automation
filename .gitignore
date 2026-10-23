@@ -1,5 +1,6 @@
 tools/blender/
 tools/ffmpeg/
+.claude/
 *.blend1
 __pycache__/
 *.pyc

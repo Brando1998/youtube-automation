@@ -51,7 +51,7 @@ def crear_arbusto(nombre="arbusto", seed=1, escala=1.0, tono="verde", contorno=T
     M = mats(tono)
     col = bpy.data.collections.new(nombre)
     (parent_col or bpy.context.scene.collection).children.link(col)
-    ol = 0.016 if contorno else 0.0
+    ol = 0.012 if contorno else 0.0
 
     # Masa de hojas: nube de bolas metaball baja y ancha, centrada apenas bajo el
     # suelo para que las hojas inferiores queden ancladas (regla 5), no apoyadas
@@ -64,11 +64,14 @@ def crear_arbusto(nombre="arbusto", seed=1, escala=1.0, tono="verde", contorno=T
         # distribución tipo domo: solo hacia arriba y hacia los lados, nunca muy
         # abajo — el centro de cada bola queda cerca de su propio radio sobre el
         # suelo, así el fondo de la masa se apoya sin hundirse de más
+        # f (qué tan lejos del centro) se mantiene moderado a propósito: lóbulos
+        # empujados muy hacia afuera quedan unidos por un "cuello" delgado al resto,
+        # y ahí el contorno se auto-intersecta (costura oscura) sin importar su grosor
         u, v_ = rnd.uniform(-1, 1), rnd.uniform(-1, 1)
         w = rnd.uniform(0.0, 1.0)
         d = (u * u + v_ * v_) ** 0.5 or 1.0
-        f = rnd.uniform(0.3, 0.95)
-        r = radio * rnd.uniform(0.4, 0.58)
+        f = rnd.uniform(0.2, 0.62)
+        r = radio * rnd.uniform(0.48, 0.65)
         cz = r * rnd.uniform(0.75, 1.0) + w * altura * 0.55
         p = Vector((u / d * f * radio, v_ / d * f * radio, cz))
         elems.append(("BALL", p, r, None))

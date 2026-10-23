@@ -23,6 +23,7 @@ def finish(obj, sub=2, outline=0.0):
         s.use_flip_normals = True
         s.use_rim = False
         s.material_offset = len(obj.data.materials) - 1
+        s.use_quality_normals = True
 
 
 def lathe_bm(profile, steps=64):
@@ -160,8 +161,12 @@ def metaball_obj(col, name, elems, m, ol=0.0):
     elems: lista de (tipo, co, radio_visible, extra). Devuelve la malla ya convertida."""
     K = 0.67
     mb = bpy.data.metaballs.new(name)
-    mb.resolution = 0.025
-    mb.render_resolution = 0.025
+    # object.convert() usa la malla "de edición", no la de render, así que ambas quedan
+    # iguales. 0.02 es un balance entre pliegues suaves y presupuesto de polígonos —
+    # el fix real para costuras en pliegues cóncavos es dar más solape entre lóbulos
+    # al definir el asset (ver arbusto.py), no bajar la resolución al mínimo.
+    mb.resolution = 0.02
+    mb.render_resolution = 0.02
     mb.threshold = 0.6
     for kind, co, r, extra in elems:
         e = mb.elements.new(type=kind)
