@@ -7,6 +7,24 @@ pueda retomar el trabajo. El plan completo y las decisiones de arquitectura est�
 **Repo**: git inicializado localmente, rama de trabajo `dev` (nunca se hace commit/merge a
 `main` sin aprobación explícita del usuario, por instrucción global del usuario).
 
+## 🔴 Bloqueado: falta infraestructura AWS (EC2 + IAM role)
+
+El usuario pidió avanzar con todas las fases restantes (A4-A7), pero **esta máquina no
+tiene ninguna credencial de AWS configurada** (sin `~/.aws/`, sin env vars, sin AWS
+CLI). El plan siempre fue usar IAM role de instancia EC2 en vez de claves planas, y el
+usuario confirmó que va a desplegar en EC2 — así que el orden real es: **primero la
+instancia, después Fase A4+**.
+
+**Guía de provisión escrita en `docs/EC2_SETUP.md`** (bucket S3, IAM role con permisos
+mínimos a Bedrock/Polly/S3, instancia `t3.medium` en `us-east-1`, security group,
+Elastic IP — importante porque la instancia se prende/apaga a diario). **La ejecuta el
+usuario** en su cuenta AWS (eligió esa opción explícitamente sobre dármela a mí o sobre
+un IAM user acotado). Sin esto no se puede seguir con A4 (Stability), A5 (Stability) ni
+A6 (Polly) — A1-A3 ya están hechas y no dependen de AWS.
+
+**Próximo paso real**: esperar a que el usuario provisione la instancia según
+`docs/EC2_SETUP.md` y me dé acceso para desplegar (SSH, o que corra él los comandos).
+
 ## ⚠️ Cambio de alcance mayor: dos estilos visuales en paralelo
 
 El proyecto ahora tiene **dos estilos de producción elegibles por episodio**: "3d"
