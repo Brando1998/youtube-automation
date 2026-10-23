@@ -36,9 +36,10 @@ Resuelto. El usuario provisionó todo siguiendo `docs/EC2_SETUP.md`:
   confirma que IAM role + región + SDK están bien configurados antes de gastar en algo
   real.
 
-**Próximo paso**: desplegar el código del repo a la instancia (por ahora vía `rsync`/
-`scp`, no hay git remoto) y generar ahí el personaje de prueba real (Lucía) para la
-Fase A4, usando `style_guide.json`.
+**Código ya desplegado** a la instancia vía `rsync` (no hay git remoto todavía).
+**Próximo paso real**: la Fase A4 está **bloqueada por un problema de pago de AWS
+Marketplace** (Stability se distribuye por ahí, no es un modelo propio de Amazon) —
+ver sección "Fase A4" más abajo.
 
 ## ⚠️ Cambio de alcance mayor: dos estilos visuales en paralelo
 
@@ -78,10 +79,44 @@ estilo ilustrado. **A1, A2 y A3 ya están hechas** (sin tocar AWS):
     simplemente no aparece (así se vieron los subtítulos pero no las capas en el primer
     intento). Cada capa ahora lleva su propio `<svg>` autocontenido; en producción la
     mayoría de capas serán `<img>` de todos modos, no SVG a mano.
+  - **A3 (resto de la biblioteca)**: `FlickerLight`, `Particles` (presets luciérnagas/
+    brasas/nieve/polvo), `Smoke`, `Fog`, `Rain`, `Lightning` (relámpago disparado por
+    frame de evento, con destello de pantalla + golpe de zoom vía
+    `golpeZoomFrames` de `Camera2D`), `ColorGrade`, `Vignette`, `Grain` — todos portan
+    las fórmulas exactas de `cabana-lucia.html`, generalizadas para recibir parámetros
+    del episode spec en vez de valores fijos de la demo. `SpeechBubble` es diseño
+    nuevo (la demo es solo narrador). `CharacterPuppet` generaliza
+    breathing/parpadeo/mirada/cejas/balanceo de la demo a cualquier personaje, con
+    **placeholders** (formas simples, incluidas las 7 bocas por visema
+    reposo/A/E/O/MBP/FV/L) para poder probar la animación sin esperar arte real.
+    Composición `PruebaEfectos` combina casi toda la biblioteca sobre la escena dummy
+    — **renderizada localmente y verificada frame por frame**: parallax, luces,
+    partículas, humo, niebla, lluvia, relámpago sincronizado con la palabra "NOCHE",
+    personaje con mirada/lip-sync, globo de diálogo, color/viñeta/grano, todo
+    funcionando junto. `tsc --noEmit` limpio.
 
-**Próximo paso**: Fase A4 (personaje 2D de prueba desde una imagen) — **requiere
-aprobación explícita antes de la primera llamada a Stability** (genera costo AWS, aunque
-bajo, ~$1-2).
+**A1, A2 y A3 completas.** Próximo paso: Fase A4 (personaje 2D real desde una imagen)
+— el script (`apps/pipeline_2d/generar_hoja.py`) ya está escrito y probado contra la
+API real, pero **quedó bloqueado por un problema de pago de AWS Marketplace** (ver
+sección "Fase A4" abajo) antes de poder generar el personaje de verdad.
+
+## ⛔ Fase A4 bloqueada — AWS Marketplace pide método de pago verificado
+
+Al intentar generar la hoja de personaje de prueba ("Lucía"), Bedrock respondió
+`AccessDeniedException: INVALID_PAYMENT_INSTRUMENT` — no es un problema de IAM ni de
+código (se confirmó repitiendo la misma llamada mínima que antes sí había funcionado).
+Causa: Stability AI se distribuye vía **AWS Marketplace**, que exige su propio método
+de pago verificado, aparte de que la cuenta ya use EC2. En Billing → Payment
+preferences, la tarjeta predeterminada del usuario aparecía como "Sin verificar".
+
+**Estado**: el usuario está verificando la tarjeta. En cuanto quede verificada, correr
+de nuevo:
+```
+ssh -i Downloads/KEYS/youtube-automation.pem ubuntu@52.5.177.143
+source ~/youtube-automation/.venv/bin/activate && cd ~/youtube-automation/repo
+python3 apps/pipeline_2d/generar_hoja.py --id lucia --sujeto "..." --out assets/2d/personajes/lucia
+```
+(puede hacer falta un `rsync` antes si el repo local cambió desde el último despliegue).
 
 ## Fase actual (estilo 3D): Fase 2 — Biblioteca de entorno (ver docs/PLAN.md)
 
