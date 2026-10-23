@@ -19,9 +19,36 @@ opción viable hoy es **Stability AI** vía Bedrock (us-east-1/us-east-2/us-west
 licencia comercial gratuita bajo $1M/año de ingresos).
 
 **Estado**: usuario aprobó el arbusto (Fase 2 del estilo 3D queda cerrada como prueba de
-patrón, ver sección "Fase 2" más abajo) y dio luz verde para arrancar **Fase A1-A3** del
-estilo ilustrado (spec + style guide + scaffold de Remotion — nada de esto toca AWS).
-Fases A4+ (que sí generan costo) requieren aprobación aparte cuando se llegue ahí.
+patrón, ver sección "Fase 2" más abajo) y dio luz verde para arrancar la Fase A del
+estilo ilustrado. **A1, A2 y A3 ya están hechas** (sin tocar AWS):
+
+- [x] **A1** — `episode_spec/schema.json` (JSON Schema) + `episode_spec/ejemplo_15s.json`,
+      validado contra el schema con `python3 -c "import jsonschema; ..."`. Cubre: campo
+      `estilo` por episodio, `modo_voz`, personajes con voz Polly, líneas con `audio`
+      (se llena en A6), eventos atados a palabras, y bloques `render.ilustrado`/`render.3d`
+      por toma.
+- [x] **A2** — `style_guide.json`: línea (#05070A, 3px en lienzo 540×960), paleta por
+      familias, **ánimo por defecto amigable para niños** (evita terror/gore aunque la
+      demo de referencia sea de misterio), prompt/negative_prompt base para Stability.
+      Pendiente de usarse recién en A4.
+- [x] **A3** — primer código Node/TS del repo: `apps/remotion-ilustrado/` (Remotion 4,
+      React 18, TS). `Camera2D` (hook `useCamera2D`) y `ParallaxLayer` portan
+      exactamente las fórmulas `camFor(d)`/`Z`/`PX`/`PY` de la demo; `Captions` porta
+      `caption(f)` con el pop-in `easeOutBack` y resaltado de palabra clave.
+      Composición de prueba `PruebaParallax` (capas de color planas, sin assets reales
+      todavía) **renderizada localmente y verificada visualmente**: el parallax por
+      profundidad se ve correcto (el elemento de profundidad baja casi no se mueve, el
+      de profundidad alta se mueve y acerca notoriamente) y los subtítulos palabra por
+      palabra funcionan con el resaltado de clave.
+  - **Bug encontrado y corregido**: un `<div>` (`ParallaxLayer`) no puede ser hijo
+    directo de un `<svg>` compartido — el DOM lo descarta en silencio y esa capa
+    simplemente no aparece (así se vieron los subtítulos pero no las capas en el primer
+    intento). Cada capa ahora lleva su propio `<svg>` autocontenido; en producción la
+    mayoría de capas serán `<img>` de todos modos, no SVG a mano.
+
+**Próximo paso**: Fase A4 (personaje 2D de prueba desde una imagen) — **requiere
+aprobación explícita antes de la primera llamada a Stability** (genera costo AWS, aunque
+bajo, ~$1-2).
 
 ## Fase actual (estilo 3D): Fase 2 — Biblioteca de entorno (ver docs/PLAN.md)
 
