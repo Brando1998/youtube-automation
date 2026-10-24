@@ -1,5 +1,7 @@
 tools/blender/
 tools/ffmpeg/
+tools/rhubarb/
+apps/pipeline_audio/.venv/
 .claude/
 node_modules/
 apps/remotion-ilustrado/out/

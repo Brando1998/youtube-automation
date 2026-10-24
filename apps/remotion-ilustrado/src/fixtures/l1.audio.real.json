@@ -1,0 +1,233 @@
+{
+  "l1": {
+    "palabras": [
+      {
+        "texto": "Cada",
+        "inicio_frame": 0,
+        "fin_frame": 9
+      },
+      {
+        "texto": "noche,",
+        "inicio_frame": 9,
+        "fin_frame": 23
+      },
+      {
+        "texto": "Lucía",
+        "inicio_frame": 34,
+        "fin_frame": 50
+      },
+      {
+        "texto": "salía",
+        "inicio_frame": 50,
+        "fin_frame": 64
+      },
+      {
+        "texto": "con",
+        "inicio_frame": 64,
+        "fin_frame": 71
+      },
+      {
+        "texto": "su",
+        "inicio_frame": 71,
+        "fin_frame": 77
+      },
+      {
+        "texto": "linterna",
+        "inicio_frame": 77,
+        "fin_frame": 95
+      },
+      {
+        "texto": "a",
+        "inicio_frame": 95,
+        "fin_frame": 100
+      },
+      {
+        "texto": "buscar",
+        "inicio_frame": 100,
+        "fin_frame": 111
+      },
+      {
+        "texto": "Luciérnagas.",
+        "inicio_frame": 111,
+        "fin_frame": 143
+      }
+    ],
+    "visemas": [
+      {
+        "tipo": "reposo",
+        "inicio_frame": 0,
+        "fin_frame": 4
+      },
+      {
+        "tipo": "E",
+        "inicio_frame": 4,
+        "fin_frame": 9
+      },
+      {
+        "tipo": "E",
+        "inicio_frame": 9,
+        "fin_frame": 13
+      },
+      {
+        "tipo": "E",
+        "inicio_frame": 13,
+        "fin_frame": 15
+      },
+      {
+        "tipo": "O",
+        "inicio_frame": 15,
+        "fin_frame": 17
+      },
+      {
+        "tipo": "O",
+        "inicio_frame": 17,
+        "fin_frame": 20
+      },
+      {
+        "tipo": "E",
+        "inicio_frame": 20,
+        "fin_frame": 24
+      },
+      {
+        "tipo": "E",
+        "inicio_frame": 24,
+        "fin_frame": 26
+      },
+      {
+        "tipo": "E",
+        "inicio_frame": 26,
+        "fin_frame": 34
+      },
+      {
+        "tipo": "E",
+        "inicio_frame": 34,
+        "fin_frame": 39
+      },
+      {
+        "tipo": "O",
+        "inicio_frame": 39,
+        "fin_frame": 41
+      },
+      {
+        "tipo": "E",
+        "inicio_frame": 41,
+        "fin_frame": 47
+      },
+      {
+        "tipo": "E",
+        "inicio_frame": 47,
+        "fin_frame": 51
+      },
+      {
+        "tipo": "E",
+        "inicio_frame": 51,
+        "fin_frame": 58
+      },
+      {
+        "tipo": "E",
+        "inicio_frame": 58,
+        "fin_frame": 64
+      },
+      {
+        "tipo": "MBP",
+        "inicio_frame": 64,
+        "fin_frame": 66
+      },
+      {
+        "tipo": "E",
+        "inicio_frame": 66,
+        "fin_frame": 72
+      },
+      {
+        "tipo": "E",
+        "inicio_frame": 72,
+        "fin_frame": 80
+      },
+      {
+        "tipo": "MBP",
+        "inicio_frame": 80,
+        "fin_frame": 83
+      },
+      {
+        "tipo": "E",
+        "inicio_frame": 83,
+        "fin_frame": 91
+      },
+      {
+        "tipo": "MBP",
+        "inicio_frame": 91,
+        "fin_frame": 93
+      },
+      {
+        "tipo": "E",
+        "inicio_frame": 93,
+        "fin_frame": 96
+      },
+      {
+        "tipo": "E",
+        "inicio_frame": 96,
+        "fin_frame": 100
+      },
+      {
+        "tipo": "O",
+        "inicio_frame": 100,
+        "fin_frame": 104
+      },
+      {
+        "tipo": "E",
+        "inicio_frame": 104,
+        "fin_frame": 111
+      },
+      {
+        "tipo": "E",
+        "inicio_frame": 111,
+        "fin_frame": 113
+      },
+      {
+        "tipo": "E",
+        "inicio_frame": 113,
+        "fin_frame": 119
+      },
+      {
+        "tipo": "E",
+        "inicio_frame": 119,
+        "fin_frame": 121
+      },
+      {
+        "tipo": "E",
+        "inicio_frame": 121,
+        "fin_frame": 125
+      },
+      {
+        "tipo": "E",
+        "inicio_frame": 125,
+        "fin_frame": 128
+      },
+      {
+        "tipo": "FV",
+        "inicio_frame": 128,
+        "fin_frame": 130
+      },
+      {
+        "tipo": "MBP",
+        "inicio_frame": 130,
+        "fin_frame": 132
+      },
+      {
+        "tipo": "E",
+        "inicio_frame": 132,
+        "fin_frame": 137
+      },
+      {
+        "tipo": "E",
+        "inicio_frame": 137,
+        "fin_frame": 143
+      },
+      {
+        "tipo": "reposo",
+        "inicio_frame": 143,
+        "fin_frame": 158
+      }
+    ]
+  }
+}

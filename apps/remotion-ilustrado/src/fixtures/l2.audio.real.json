@@ -1,0 +1,128 @@
+{
+  "l2": {
+    "palabras": [
+      {
+        "texto": "Ahí",
+        "inicio_frame": 0,
+        "fin_frame": 10
+      },
+      {
+        "texto": "hay",
+        "inicio_frame": 10,
+        "fin_frame": 17
+      },
+      {
+        "texto": "una.",
+        "inicio_frame": 17,
+        "fin_frame": 27
+      },
+      {
+        "texto": "Ven",
+        "inicio_frame": 37,
+        "fin_frame": 44
+      },
+      {
+        "texto": "a",
+        "inicio_frame": 44,
+        "fin_frame": 49
+      },
+      {
+        "texto": "jugar.",
+        "inicio_frame": 49,
+        "fin_frame": 57
+      }
+    ],
+    "visemas": [
+      {
+        "tipo": "reposo",
+        "inicio_frame": 0,
+        "fin_frame": 3
+      },
+      {
+        "tipo": "E",
+        "inicio_frame": 3,
+        "fin_frame": 5
+      },
+      {
+        "tipo": "E",
+        "inicio_frame": 5,
+        "fin_frame": 11
+      },
+      {
+        "tipo": "E",
+        "inicio_frame": 11,
+        "fin_frame": 15
+      },
+      {
+        "tipo": "E",
+        "inicio_frame": 15,
+        "fin_frame": 17
+      },
+      {
+        "tipo": "E",
+        "inicio_frame": 17,
+        "fin_frame": 19
+      },
+      {
+        "tipo": "O",
+        "inicio_frame": 19,
+        "fin_frame": 23
+      },
+      {
+        "tipo": "MBP",
+        "inicio_frame": 23,
+        "fin_frame": 26
+      },
+      {
+        "tipo": "E",
+        "inicio_frame": 26,
+        "fin_frame": 29
+      },
+      {
+        "tipo": "E",
+        "inicio_frame": 29,
+        "fin_frame": 39
+      },
+      {
+        "tipo": "FV",
+        "inicio_frame": 39,
+        "fin_frame": 41
+      },
+      {
+        "tipo": "E",
+        "inicio_frame": 41,
+        "fin_frame": 48
+      },
+      {
+        "tipo": "O",
+        "inicio_frame": 48,
+        "fin_frame": 50
+      },
+      {
+        "tipo": "O",
+        "inicio_frame": 50,
+        "fin_frame": 55
+      },
+      {
+        "tipo": "E",
+        "inicio_frame": 55,
+        "fin_frame": 57
+      },
+      {
+        "tipo": "E",
+        "inicio_frame": 57,
+        "fin_frame": 59
+      },
+      {
+        "tipo": "E",
+        "inicio_frame": 59,
+        "fin_frame": 64
+      },
+      {
+        "tipo": "reposo",
+        "inicio_frame": 64,
+        "fin_frame": 73
+      }
+    ]
+  }
+}
