@@ -1,0 +1,77 @@
+{
+  "id": "ep-0000-prueba-15s",
+  "titulo": "Lucía y la luciérnaga (recorrido de prueba)",
+  "estilo": "ilustrado",
+  "modo_voz": "mixto",
+  "fps": 30,
+  "salidas": ["9:16"],
+
+  "narrador": {
+    "voz_polly": { "voice_id": "Mia", "engine": "neural", "lang": "es-MX" }
+  },
+
+  "personajes": [
+    {
+      "id": "lucia",
+      "nombre": "Lucía",
+      "voz_polly": { "voice_id": "Lupe", "engine": "neural", "lang": "es-US" },
+      "color_subtitulo": "#F2B33D",
+      "asset_ref": "2d/personajes/lucia"
+    }
+  ],
+
+  "escenas": [
+    {
+      "id": "esc-1",
+      "fondo": "2d/fondos/cabana-bosque-noche",
+      "tomas": [
+        {
+          "id": "toma-1",
+          "duracion_frames": 450,
+          "camara": {
+            "zoom_inicial": 1.0,
+            "zoom_final": 1.1,
+            "golpe_zoom_en": ["luciernaga_aparece"]
+          },
+          "lineas": [
+            {
+              "id": "l1",
+              "hablante": "narrador",
+              "texto": "Cada noche, Lucía salía con su linterna a buscar luciérnagas.",
+              "emocion": "calma",
+              "audio": null
+            },
+            {
+              "id": "l2",
+              "hablante": "lucia",
+              "texto": "¡Ahí hay una! ¡Ven a jugar!",
+              "emocion": "alegria",
+              "audio": null
+            }
+          ],
+          "eventos": [
+            { "tipo": "luciernaga_aparece", "en_palabra": { "linea": "l2", "texto": "ahí" } }
+          ],
+          "render": {
+            "ilustrado": {
+              "capas_fondo": ["cielo", "lejano", "medio", "cabana", "primer_plano"],
+              "personajes_en_escena": [
+                { "id": "lucia", "posicion": [0.42, 0.72], "escala": 1.0 }
+              ],
+              "efectos": {
+                "humo": true,
+                "niebla": false,
+                "lluvia": false,
+                "particulas": "luciernagas",
+                "grano": true,
+                "vineta": true,
+                "color_grade": "calido"
+              }
+            },
+            "3d": { "scene_spec_ref": null }
+          }
+        }
+      ]
+    }
+  ]
+}
