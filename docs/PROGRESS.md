@@ -120,6 +120,29 @@ estilo ilustrado. **A1, A2 y A3 ya están hechas** (sin tocar AWS):
     la arquitectura (`docs/PLAN.md`) — falta conectarlo a catálogos/audio reales en
     vez de mocks, que es exactamente lo que destraba la Fase A4.
 
+- **Camino "audio grabado" (Fase A6, mitad no-AWS) — REAL, no mock, construido
+  mientras A4 seguía bloqueada**: `apps/pipeline_audio/generar_audio_local.py` —
+  Whisper (`openai-whisper`, instalado sin root con `uv` porque esta máquina no tiene
+  `python3-venv` ni sudo) para palabras con tiempos, **Rhubarb Lip Sync** (binario
+  oficial descargado sin root, igual que Blender/ffmpeg) para formas de boca.
+  Mapeo Rhubarb (A-H,X) → nuestro `VisemaCode` (reposo/A/E/O/MBP/FV/L) confirmado
+  contra la documentación oficial del proyecto, no adivinado — queda comentado en el
+  script con el porqué de cada mapeo. Todo convertido a número de frame (no
+  segundos), mismo formato que `audio.palabras`/`audio.visemas` del episode spec.
+  - **Rhubarb solo acepta `.wav`/`.ogg`** (no mp3) — el script convierte siempre con
+    ffmpeg antes de llamarlo, así acepta cualquier formato de entrada.
+  - **Probado de punta a punta con audio real**: sin tener todavía una grabación del
+    usuario, se generó audio de prueba con gTTS (gratis, sin cuenta — solo para tener
+    un .mp3 con el que ejercitar Whisper+Rhubarb, no es la voz de producción) para
+    las dos líneas de `ejemplo_15s.json`, se corrió el pipeline real, y el resultado
+    se conectó al `EpisodeRenderer` (composición `PruebaAudioReal`,
+    `fixtures/audioReal.ts`) — **renderizado localmente y verificado: la boca del
+    personaje cambia de forma de verdad, sincronizada con la transcripción real**, no
+    con datos inventados a mano.
+  - Pendiente (no bloqueante): agregar el audio real a la pista de sonido del video
+    renderizado (hoy solo se usa para derivar texto/tiempos, el render queda mudo) —
+    cuestión de usar `<Audio>` de Remotion, no de pipeline.
+
 Próximo paso real: Fase A4 (personaje 2D real desde una imagen) — el script
 (`apps/pipeline_2d/generar_hoja.py`) ya está escrito y probado contra la API real,
 pero **sigue bloqueado por un problema de pago de AWS Marketplace** (ver sección
@@ -255,6 +278,16 @@ preguntar.
   mejor soporte GPU/EGL, es el patrón de producción estándar. Instalado localmente sin root.
 - **ffmpeg estático local** (`tools/ffmpeg/`, sin root) para codificar los turntables a mp4,
   porque el build oficial de Blender no trae el encoder de video compilado.
+- **Entornos Python en esta máquina local (no la EC2) van con `uv`, no `venv`** — no
+  hay `python3-venv` instalado y no hay sudo local (`python3 -m venv` falla con
+  "ensurepip is not available"; `pip install --user` falla por PEP 668 "externally
+  managed environment"). `uv` se instala sin root (`curl -LsSf
+  https://astral.sh/uv/install.sh | sh`, queda en `~/.local/bin`) y resuelve ambos
+  problemas. La instancia EC2 sí tiene sudo (usuario `ubuntu`), ahí se puede seguir
+  usando `python3 -m venv` normal.
+- **Rhubarb Lip Sync** (`tools/rhubarb/`, binario oficial, sin root) para el camino de
+  lip sync con audio pregrabado — solo acepta `.wav`/`.ogg`, hay que convertir con
+  ffmpeg antes si el audio viene en otro formato.
 - **Cero gasto de AWS** en las fases de biblioteca de assets (Fases 1-5). Render en AWS
   (Batch + GPU spot) es Fase 6, requiere aprobación explícita antes de provisionar nada.
 - **Backend futuro (Fase 6, web app) en Python (FastAPI)**, no Node — porque el núcleo del
