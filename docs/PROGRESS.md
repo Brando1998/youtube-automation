@@ -95,10 +95,36 @@ estilo ilustrado. **A1, A2 y A3 ya están hechas** (sin tocar AWS):
     personaje con mirada/lip-sync, globo de diálogo, color/viñeta/grano, todo
     funcionando junto. `tsc --noEmit` limpio.
 
-**A1, A2 y A3 completas.** Próximo paso: Fase A4 (personaje 2D real desde una imagen)
-— el script (`apps/pipeline_2d/generar_hoja.py`) ya está escrito y probado contra la
-API real, pero **quedó bloqueado por un problema de pago de AWS Marketplace** (ver
-sección "Fase A4" abajo) antes de poder generar el personaje de verdad.
+**A1, A2 y A3 completas.**
+
+- **Renderer real (adelantado mientras A4 sigue bloqueada)**: `EpisodeRenderer.tsx`
+  (componente `TomaIlustrada`) — arma una toma **a partir del episode spec real**
+  (tipado mínimo que refleja `episode_spec/schema.json`), no de una escena armada a
+  mano. Lee: fondo por id desde un catálogo (`catalog/fondos.tsx` — hoy un mock
+  "2d/fondos/cabana-bosque-noche" con capas/luces/origen de humo placeholder),
+  personajes desde otro catálogo (`catalog/personajes.tsx` — mock "2d/personajes/
+  lucia"), y audio sincronizado (`lineasAudio`, hoy un mock en `fixtures/
+  audioMock.ts` porque Polly/A6 sigue bloqueada) — resuelve eventos `en_palabra` a
+  frames concretos buscando la palabra en ese audio, arma golpes de zoom/relámpago
+  desde ahí, y reparte líneas entre `Captions` (narrador) y `SpeechBubble`
+  (personajes). Composición `PruebaEpisodeSpec` usa una copia de
+  `episode_spec/ejemplo_15s.json` tal cual — **renderizada localmente y verificada**.
+  - **Bug encontrado y corregido**: `personajes_en_escena[].id` se estaba comparando
+    contra `asset_ref` en dos sitios (debía ser contra el `id` del personaje, igual
+    que `hablante`) — el globo de diálogo no aparecía por este motivo. Corregido;
+    confirmado visualmente que ahora sí aparece con el texto correcto y el lip-sync
+    se ve cambiando de boca en los frames correctos.
+  - Ajuste menor: posición del globo de diálogo subida para no montarse sobre la
+    cabeza del placeholder.
+  - Esto es, en los hechos, la primera versión de `RemotionIllustratedRenderer` de
+    la arquitectura (`docs/PLAN.md`) — falta conectarlo a catálogos/audio reales en
+    vez de mocks, que es exactamente lo que destraba la Fase A4.
+
+Próximo paso real: Fase A4 (personaje 2D real desde una imagen) — el script
+(`apps/pipeline_2d/generar_hoja.py`) ya está escrito y probado contra la API real,
+pero **sigue bloqueado por un problema de pago de AWS Marketplace** (ver sección
+"Fase A4" abajo) antes de poder generar el personaje de verdad y conectarlo al
+catálogo/renderer ya construidos.
 
 ## ⛔ Fase A4 bloqueada — AWS Marketplace pide método de pago verificado
 
