@@ -37,9 +37,9 @@ Resuelto. El usuario provisionó todo siguiendo `docs/EC2_SETUP.md`:
   real.
 
 **Código ya desplegado** a la instancia vía `rsync` (no hay git remoto todavía).
-**Próximo paso real**: la Fase A4 está **bloqueada por un problema de pago de AWS
-Marketplace** (Stability se distribuye por ahí, no es un modelo propio de Amazon) —
-ver sección "Fase A4" más abajo.
+**Fase A4 desbloqueada** (ver sección "Fase A4" más abajo — era un perfil de pago de
+Marketplace faltante en USD, no un problema de IAM ni de código) — listo para generar
+el personaje real.
 
 ## ⚠️ Cambio de alcance mayor: dos estilos visuales en paralelo
 
@@ -149,17 +149,36 @@ pero **sigue bloqueado por un problema de pago de AWS Marketplace** (ver secció
 "Fase A4" abajo) antes de poder generar el personaje de verdad y conectarlo al
 catálogo/renderer ya construidos.
 
-## ⛔ Fase A4 bloqueada — AWS Marketplace pide método de pago verificado
+## ✅ Fase A4 desbloqueada — causa real: falta de perfil de pago de Marketplace en USD
 
-Al intentar generar la hoja de personaje de prueba ("Lucía"), Bedrock respondió
-`AccessDeniedException: INVALID_PAYMENT_INSTRUMENT` — no es un problema de IAM ni de
-código (se confirmó repitiendo la misma llamada mínima que antes sí había funcionado).
-Causa: Stability AI se distribuye vía **AWS Marketplace**, que exige su propio método
-de pago verificado, aparte de que la cuenta ya use EC2. En Billing → Payment
-preferences, la tarjeta predeterminada del usuario aparecía como "Sin verificar".
+Quedó resuelto, pero el camino fue más largo de lo esperado — queda documentado para
+no repetirlo si vuelve a pasar en otro proveedor de Bedrock Marketplace más adelante:
 
-**Estado**: el usuario está verificando la tarjeta. En cuanto quede verificada, correr
-de nuevo:
+1. Primer síntoma: `AccessDeniedException: ... aws-marketplace:ViewSubscriptions,
+   aws-marketplace:Subscribe` — nuestro IAM role (a propósito, permisos mínimos) no
+   tiene esos permisos. Esto es esperado: según la documentación de AWS, los modelos
+   servidos vía **AWS Marketplace** (Stability es uno) necesitan que **un principal
+   con permisos de Marketplace** (el usuario logueado en la consola, no el role de la
+   instancia) invoque el modelo **una vez** desde el Playground de Bedrock para
+   habilitarlo a nivel de cuenta.
+2. Al invocar desde el Playground, el error cambió a `INVALID_PAYMENT_INSTRUMENT` —
+   esto sí es un problema real de facturación, no de permisos. Investigado (ver
+   hilos de AWS re:Post): es un problema conocido, no exclusivo de esta cuenta.
+3. **Causa real encontrada**: Billing → Preferencias de pago tiene dos pestañas,
+   "Métodos de pago" (tarjetas registradas) y **"Perfiles de pago"** (qué tarjeta y
+   qué moneda usa cada proveedor de AWS). El perfil predeterminado de esta cuenta
+   factura en **COP**, pero AWS Marketplace necesita **USD** — sin un perfil de pago
+   específico para Marketplace en USD, la suscripción nunca se completa aunque la
+   tarjeta esté verificada. Se creó un perfil nuevo: proveedor **"AWS Inc. -
+   Marketplace"**, divisa **USD**, método de pago la Mastercard ••••8461 (crédito).
+4. Tras crear ese perfil, la misma llamada mínima de prueba funcionó: imagen
+   generada correctamente (`stability.stable-image-core-v1:1`, 2.9MB, verificada
+   visualmente).
+
+**Para la próxima vez** (si otro proveedor de Marketplace da el mismo error): revisar
+primero Billing → Preferencias de pago → Perfiles de pago, no solo Métodos de pago.
+
+**Comando para generar el personaje real ahora que está desbloqueado**:
 ```
 ssh -i Downloads/KEYS/youtube-automation.pem ubuntu@52.5.177.143
 source ~/youtube-automation/.venv/bin/activate && cd ~/youtube-automation/repo
