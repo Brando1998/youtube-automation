@@ -1,0 +1,140 @@
+{% extends "base.html" %}
+{% block titulo %}{{ episodio.titulo }} — Episodio{% endblock %}
+{% block contenido %}
+<p><a href="/app/episodios">&larr; Episodios</a></p>
+<div class="flex-entre">
+  <h1>{{ episodio.titulo }}</h1>
+  <span id="badge-estado">{{ "" }}</span>
+</div>
+<p class="vacio" style="padding:0">{{ episodio.estilo }} · {{ episodio.modo_voz }} · creado {{ episodio.creado_en }}</p>
+
+<div class="panel">
+  <h2 style="margin-top:0">Guion</h2>
+  <pre class="json-viewer" id="guion-texto">{{ episodio.guion_texto or "(sin guion todavía)" }}</pre>
+</div>
+
+<div class="panel">
+  <h2 style="margin-top:0">Episode spec</h2>
+  <div class="aviso-simulacion">
+    Por defecto los jobs corren simulados (<code>--dry-run</code>), sin llamar a AWS ni gastar nada.
+  </div>
+  <label class="fila-check">
+    <input type="checkbox" id="chk-simular-spec" checked>
+    Simular (no genera el spec real, solo valida que el pipeline funcione)
+  </label>
+  <button class="btn" id="btn-generar-spec">Generar episode spec</button>
+  <p id="estado-job-spec" class="vacio" hidden></p>
+  <pre class="json-viewer" id="spec-viewer">{{ spec_json or "(todavía no se generó)" }}</pre>
+</div>
+
+<div class="panel">
+  <h2 style="margin-top:0">Generar línea de voz (Polly)</h2>
+  <form id="form-voz">
+    <label>id de línea (p.ej. l1)
+      <input type="text" name="linea_id" required>
+    </label>
+    <label>Texto
+      <input type="text" name="texto" required>
+    </label>
+    <label class="fila-check">
+      <input type="checkbox" name="simular" checked>
+      Simular (no llama a Polly de verdad)
+    </label>
+    <button type="submit">Generar voz</button>
+    <p id="error-voz" class="error" hidden></p>
+  </form>
+</div>
+
+<div class="panel">
+  <h2 style="margin-top:0">Jobs de este episodio</h2>
+  <table>
+    <thead><tr><th>Tipo</th><th>Estado</th><th>Creado</th><th>Error</th></tr></thead>
+    <tbody id="tabla-jobs"></tbody>
+  </table>
+  <p id="vacio-jobs" class="vacio" hidden>Sin jobs todavía.</p>
+</div>
+{% endblock %}
+{% block script %}
+<script>
+const EPISODIO_ID = "{{ episodio.id }}";
+
+function render() {
+  document.getElementById('badge-estado').outerHTML =
+    '<span id="badge-estado">' + badgeEstado("{{ episodio.estado }}") + '</span>';
+}
+render();
+
+async function cargarJobs() {
+  const jobs = (await apiGet('/jobs')).filter(j => j.episodio_id === EPISODIO_ID);
+  const tbody = document.getElementById('tabla-jobs');
+  tbody.innerHTML = '';
+  document.getElementById('vacio-jobs').hidden = jobs.length > 0;
+  for (const j of jobs) {
+    const tr = document.createElement('tr');
+    tr.innerHTML = `
+      <td>${j.tipo}</td>
+      <td>${badgeEstado(j.estado)}</td>
+      <td>${formatFecha(j.creado_en)}</td>
+      <td style="max-width:260px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${j.error || ''}</td>
+    `;
+    tbody.appendChild(tr);
+  }
+}
+
+async function recargarEpisodio() {
+  const ep = await apiGet(`/episodios/${EPISODIO_ID}`);
+  document.getElementById('spec-viewer').textContent = ep.spec_json
+    ? JSON.stringify(ep.spec_json, null, 2)
+    : '(todavía no se generó)';
+}
+
+document.getElementById('btn-generar-spec').addEventListener('click', async () => {
+  const btn = document.getElementById('btn-generar-spec');
+  const simular = document.getElementById('chk-simular-spec').checked;
+  const estadoEl = document.getElementById('estado-job-spec');
+  btn.disabled = true;
+  estadoEl.hidden = false;
+  estadoEl.textContent = 'Creando job...';
+  try {
+    const job = await apiPost('/jobs', { tipo: 'episode_spec', episodio_id: EPISODIO_ID, simular });
+    pollJob(job.id, async (j, err) => {
+      if (err) { estadoEl.textContent = 'Error consultando el job: ' + err.message; btn.disabled = false; return; }
+      estadoEl.innerHTML = 'Job: ' + badgeEstado(j.estado);
+      if (j.estado === 'completado' || j.estado === 'fallido') {
+        btn.disabled = false;
+        if (j.error) estadoEl.innerHTML += ' — ' + j.error;
+        await recargarEpisodio();
+        await cargarJobs();
+      }
+    });
+  } catch (e) {
+    estadoEl.textContent = e.message;
+    btn.disabled = false;
+  }
+  await cargarJobs();
+});
+
+document.getElementById('form-voz').addEventListener('submit', async (ev) => {
+  ev.preventDefault();
+  const form = ev.target;
+  const errorEl = document.getElementById('error-voz');
+  errorEl.hidden = true;
+  try {
+    await apiPost('/jobs', {
+      tipo: 'voz_polly',
+      episodio_id: EPISODIO_ID,
+      simular: form.simular.checked,
+      parametros: { linea_id: form.linea_id.value, texto: form.texto.value },
+    });
+    form.reset();
+    form.simular.checked = true;
+    await cargarJobs();
+  } catch (e) {
+    errorEl.textContent = e.message;
+    errorEl.hidden = false;
+  }
+});
+
+cargarJobs();
+</script>
+{% endblock %}

@@ -1,0 +1,138 @@
+{% extends "base.html" %}
+{% block titulo %}Personajes{% endblock %}
+{% block contenido %}
+<h1>Personajes</h1>
+
+<div class="panel">
+  <h2 style="margin-top:0">Nuevo personaje</h2>
+  <form id="form-personaje">
+    <label>Nombre
+      <input type="text" name="nombre" required placeholder="lucia">
+    </label>
+    <label>asset_ref
+      <input type="text" name="asset_ref" required placeholder="2d/personajes/lucia">
+    </label>
+    <label>Color de subtítulo (opcional)
+      <input type="text" name="color_subtitulo" placeholder="#F2B33D">
+    </label>
+    <button type="submit">Crear personaje</button>
+    <p id="error-personaje" class="error" hidden></p>
+  </form>
+</div>
+
+<div class="aviso-simulacion">
+  Por defecto los jobs corren simulados (<code>--dry-run</code>), sin llamar a AWS ni gastar nada.
+</div>
+
+<div id="lista-personajes"></div>
+<p id="vacio-personajes" class="vacio" hidden>Todavía no hay personajes.</p>
+{% endblock %}
+{% block script %}
+<script>
+async function cargarPersonajes() {
+  const personajes = await apiGet('/personajes');
+  const cont = document.getElementById('lista-personajes');
+  cont.innerHTML = '';
+  document.getElementById('vacio-personajes').hidden = personajes.length > 0;
+  for (const p of personajes) {
+    const div = document.createElement('div');
+    div.className = 'panel';
+    div.innerHTML = `
+      <div class="flex-entre">
+        <strong>${p.nombre}</strong>
+        ${badgeEstado(p.estado)}
+      </div>
+      <p class="vacio" style="padding:0.25rem 0">${p.asset_ref}</p>
+      <details>
+        <summary>Generar hoja de referencia (Fase A4)</summary>
+        <form class="form-hoja" data-personaje-id="${p.id}">
+          <label>Sujeto (descripción para el prompt)
+            <input type="text" name="sujeto" required placeholder="a cheerful young girl, yellow raincoat, lantern">
+          </label>
+          <label class="fila-check"><input type="checkbox" name="simular" checked> Simular</label>
+          <button type="submit">Generar hoja</button>
+        </form>
+      </details>
+      <details>
+        <summary>Separar en partes (requiere hoja aprobada)</summary>
+        <form class="form-partes" data-personaje-id="${p.id}">
+          <label>Regiones (JSON — ver regiones.ejemplo.json)
+            <textarea name="regiones" rows="4" placeholder='{"cuerpo": {"x":0,"y":0,"w":10,"h":10}, ...}'></textarea>
+          </label>
+          <label class="fila-check"><input type="checkbox" name="simular" checked> Simular</label>
+          <button type="submit">Generar partes</button>
+        </form>
+      </details>
+      <p class="estado-job vacio" data-personaje-id="${p.id}" hidden></p>
+    `;
+    cont.appendChild(div);
+  }
+}
+
+document.getElementById('form-personaje').addEventListener('submit', async (ev) => {
+  ev.preventDefault();
+  const form = ev.target;
+  const errorEl = document.getElementById('error-personaje');
+  errorEl.hidden = true;
+  try {
+    await apiPost('/personajes', {
+      nombre: form.nombre.value,
+      asset_ref: form.asset_ref.value,
+      color_subtitulo: form.color_subtitulo.value || null,
+    });
+    form.reset();
+    await cargarPersonajes();
+  } catch (e) {
+    errorEl.textContent = e.message;
+    errorEl.hidden = false;
+  }
+});
+
+function estadoEl(personajeId) {
+  return document.querySelector(`.estado-job[data-personaje-id="${personajeId}"]`);
+}
+
+document.addEventListener('submit', async (ev) => {
+  if (!ev.target.matches('.form-hoja, .form-partes')) return;
+  ev.preventDefault();
+  const form = ev.target;
+  const personajeId = form.dataset.personajeId;
+  const estado = estadoEl(personajeId);
+  estado.hidden = false;
+  estado.textContent = 'Creando job...';
+  try {
+    let job;
+    if (form.classList.contains('form-hoja')) {
+      job = await apiPost('/jobs', {
+        tipo: 'hoja_personaje',
+        personaje_id: personajeId,
+        simular: form.simular.checked,
+        parametros: { sujeto: form.sujeto.value },
+      });
+    } else {
+      let regiones;
+      try {
+        regiones = JSON.parse(form.regiones.value);
+      } catch {
+        estado.textContent = 'El JSON de regiones no es válido.';
+        return;
+      }
+      job = await apiPost('/jobs', {
+        tipo: 'partes_personaje',
+        personaje_id: personajeId,
+        simular: form.simular.checked,
+        parametros: { regiones },
+      });
+    }
+    pollJob(job.id, (j, err) => {
+      if (err) { estado.textContent = 'Error: ' + err.message; return; }
+      estado.innerHTML = 'Job: ' + badgeEstado(j.estado) + (j.error ? ' — ' + j.error : '');
+    });
+  } catch (e) {
+    estado.textContent = e.message;
+  }
+});
+
+cargarPersonajes();
+</script>
+{% endblock %}

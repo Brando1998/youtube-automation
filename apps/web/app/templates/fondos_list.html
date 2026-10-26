@@ -1,0 +1,107 @@
+{% extends "base.html" %}
+{% block titulo %}Fondos{% endblock %}
+{% block contenido %}
+<h1>Fondos</h1>
+
+<div class="panel">
+  <h2 style="margin-top:0">Nuevo fondo</h2>
+  <form id="form-fondo">
+    <label>Nombre
+      <input type="text" name="nombre" required placeholder="cabana-bosque-noche">
+    </label>
+    <label>asset_ref
+      <input type="text" name="asset_ref" required placeholder="2d/fondos/cabana-bosque-noche">
+    </label>
+    <button type="submit">Crear fondo</button>
+    <p id="error-fondo" class="error" hidden></p>
+  </form>
+</div>
+
+<div class="aviso-simulacion">
+  Por defecto los jobs corren simulados (<code>--dry-run</code>), sin llamar a AWS ni gastar nada.
+</div>
+
+<div id="lista-fondos"></div>
+<p id="vacio-fondos" class="vacio" hidden>Todavía no hay fondos.</p>
+{% endblock %}
+{% block script %}
+<script>
+async function cargarFondos() {
+  const fondos = await apiGet('/fondos');
+  const cont = document.getElementById('lista-fondos');
+  cont.innerHTML = '';
+  document.getElementById('vacio-fondos').hidden = fondos.length > 0;
+  for (const f of fondos) {
+    const div = document.createElement('div');
+    div.className = 'panel';
+    div.innerHTML = `
+      <div class="flex-entre">
+        <strong>${f.nombre}</strong>
+        ${badgeEstado(f.estado)}
+      </div>
+      <p class="vacio" style="padding:0.25rem 0">${f.asset_ref}</p>
+      <details>
+        <summary>Generar capas (ver apps/pipeline_2d/fondo_spec.ejemplo.json)</summary>
+        <form class="form-fondo-spec" data-fondo-id="${f.id}">
+          <label>Spec del fondo (JSON: id/capas/luces/humo_origen)
+            <textarea name="spec" rows="6" placeholder='{"id": "...", "capas": [...]}'></textarea>
+          </label>
+          <label class="fila-check"><input type="checkbox" name="simular" checked> Simular</label>
+          <button type="submit">Generar fondo</button>
+        </form>
+      </details>
+      <p class="estado-job vacio" data-fondo-id="${f.id}" hidden></p>
+    `;
+    cont.appendChild(div);
+  }
+}
+
+document.getElementById('form-fondo').addEventListener('submit', async (ev) => {
+  ev.preventDefault();
+  const form = ev.target;
+  const errorEl = document.getElementById('error-fondo');
+  errorEl.hidden = true;
+  try {
+    await apiPost('/fondos', { nombre: form.nombre.value, asset_ref: form.asset_ref.value });
+    form.reset();
+    await cargarFondos();
+  } catch (e) {
+    errorEl.textContent = e.message;
+    errorEl.hidden = false;
+  }
+});
+
+document.addEventListener('submit', async (ev) => {
+  if (!ev.target.matches('.form-fondo-spec')) return;
+  ev.preventDefault();
+  const form = ev.target;
+  const fondoId = form.dataset.fondoId;
+  const estado = document.querySelector(`.estado-job[data-fondo-id="${fondoId}"]`);
+  estado.hidden = false;
+  let spec;
+  try {
+    spec = JSON.parse(form.spec.value);
+  } catch {
+    estado.textContent = 'El JSON del spec no es válido.';
+    return;
+  }
+  estado.textContent = 'Creando job...';
+  try {
+    const job = await apiPost('/jobs', {
+      tipo: 'fondo',
+      fondo_id: fondoId,
+      simular: form.simular.checked,
+      parametros: { spec },
+    });
+    pollJob(job.id, (j, err) => {
+      if (err) { estado.textContent = 'Error: ' + err.message; return; }
+      estado.innerHTML = 'Job: ' + badgeEstado(j.estado) + (j.error ? ' — ' + j.error : '');
+    });
+  } catch (e) {
+    estado.textContent = e.message;
+  }
+});
+
+cargarFondos();
+</script>
+{% endblock %}

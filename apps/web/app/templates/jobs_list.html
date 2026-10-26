@@ -1,0 +1,58 @@
+{% extends "base.html" %}
+{% block titulo %}Jobs{% endblock %}
+{% block contenido %}
+<div class="flex-entre">
+  <h1>Jobs recientes</h1>
+  <button class="btn btn-secundario" id="btn-refrescar">Refrescar</button>
+</div>
+<div class="panel">
+  <table>
+    <thead>
+      <tr><th>Tipo</th><th>Estado</th><th>Entidad</th><th>Creado</th><th>Terminado</th><th>Error</th></tr>
+    </thead>
+    <tbody id="tabla-jobs"></tbody>
+  </table>
+  <p id="vacio-jobs" class="vacio" hidden>Todavía no hay jobs.</p>
+</div>
+{% endblock %}
+{% block script %}
+<script>
+function entidadDe(j) {
+  if (j.episodio_id) return `episodio ${j.episodio_id.slice(0, 8)}`;
+  if (j.personaje_id) return `personaje ${j.personaje_id.slice(0, 8)}`;
+  if (j.fondo_id) return `fondo ${j.fondo_id.slice(0, 8)}`;
+  return '—';
+}
+
+async function cargarJobs() {
+  const jobs = await apiGet('/jobs');
+  const tbody = document.getElementById('tabla-jobs');
+  tbody.innerHTML = '';
+  document.getElementById('vacio-jobs').hidden = jobs.length > 0;
+  for (const j of jobs) {
+    const tr = document.createElement('tr');
+    tr.innerHTML = `
+      <td>${j.tipo}</td>
+      <td>${badgeEstado(j.estado)}</td>
+      <td>${entidadDe(j)}</td>
+      <td>${formatFecha(j.creado_en)}</td>
+      <td>${formatFecha(j.terminado_en)}</td>
+      <td style="max-width:260px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap" title="${(j.error || '').replace(/"/g, '&quot;')}">${j.error || ''}</td>
+    `;
+    tbody.appendChild(tr);
+  }
+  return jobs;
+}
+
+document.getElementById('btn-refrescar').addEventListener('click', cargarJobs);
+
+// Auto-refresco liviano mientras haya jobs corriendo/pendientes.
+async function autoRefrescar() {
+  const jobs = await cargarJobs();
+  const hayActivos = jobs.some(j => j.estado === 'pendiente' || j.estado === 'corriendo');
+  if (hayActivos) setTimeout(autoRefrescar, 3000);
+}
+
+autoRefrescar();
+</script>
+{% endblock %}

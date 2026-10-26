@@ -1,0 +1,43 @@
+{% extends "base.html" %}
+{% block titulo %}Iniciar sesión — youtube-automation{% endblock %}
+{% block contenido %}
+<div class="caja-login">
+  <h1>Iniciar sesión</h1>
+  <form id="form-login">
+    <label>Email
+      <input type="email" name="email" required autofocus>
+    </label>
+    <label>Contraseña
+      <input type="password" name="password" required>
+    </label>
+    <button type="submit">Entrar</button>
+    <p id="error-login" class="error" hidden></p>
+  </form>
+</div>
+{% endblock %}
+{% block script %}
+<script>
+document.getElementById('form-login').addEventListener('submit', async (ev) => {
+  ev.preventDefault();
+  const form = ev.target;
+  const errorEl = document.getElementById('error-login');
+  errorEl.hidden = true;
+  const body = {
+    email: form.email.value,
+    password: form.password.value,
+  };
+  const resp = await fetch('/auth/login', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(body),
+  });
+  if (resp.ok) {
+    window.location.href = '/app/episodios';
+  } else {
+    const data = await resp.json().catch(() => ({}));
+    errorEl.textContent = data.detail || 'No se pudo iniciar sesión.';
+    errorEl.hidden = false;
+  }
+});
+</script>
+{% endblock %}

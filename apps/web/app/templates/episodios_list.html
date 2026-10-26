@@ -1,0 +1,87 @@
+{% extends "base.html" %}
+{% block titulo %}Episodios{% endblock %}
+{% block contenido %}
+<div class="flex-entre">
+  <h1>Episodios</h1>
+</div>
+
+<div class="panel">
+  <h2 style="margin-top:0">Nuevo episodio</h2>
+  <form id="form-episodio">
+    <label>Título
+      <input type="text" name="titulo" required>
+    </label>
+    <label>Estilo
+      <select name="estilo">
+        <option value="ilustrado">ilustrado</option>
+        <option value="3d">3d</option>
+      </select>
+    </label>
+    <label>Modo de voz
+      <select name="modo_voz">
+        <option value="mixto">mixto</option>
+        <option value="narrador">narrador</option>
+        <option value="dialogos">dialogos</option>
+      </select>
+    </label>
+    <label>Guion (opcional, se puede completar después)
+      <textarea name="guion_texto" rows="4" placeholder="NARRADOR: ...&#10;LUCIA: ..."></textarea>
+    </label>
+    <button type="submit">Crear episodio</button>
+    <p id="error-episodio" class="error" hidden></p>
+  </form>
+</div>
+
+<div class="panel">
+  <table>
+    <thead>
+      <tr><th>Título</th><th>Estilo</th><th>Modo voz</th><th>Estado</th><th>Creado</th></tr>
+    </thead>
+    <tbody id="tabla-episodios"></tbody>
+  </table>
+  <p id="vacio-episodios" class="vacio" hidden>Todavía no hay episodios.</p>
+</div>
+{% endblock %}
+{% block script %}
+<script>
+async function cargarEpisodios() {
+  const episodios = await apiGet('/episodios');
+  const tbody = document.getElementById('tabla-episodios');
+  tbody.innerHTML = '';
+  document.getElementById('vacio-episodios').hidden = episodios.length > 0;
+  for (const ep of episodios) {
+    const tr = document.createElement('tr');
+    tr.innerHTML = `
+      <td><a href="/app/episodios/${ep.id}">${ep.titulo}</a></td>
+      <td>${ep.estilo}</td>
+      <td>${ep.modo_voz}</td>
+      <td>${badgeEstado(ep.estado)}</td>
+      <td>${formatFecha(ep.creado_en)}</td>
+    `;
+    tbody.appendChild(tr);
+  }
+}
+
+document.getElementById('form-episodio').addEventListener('submit', async (ev) => {
+  ev.preventDefault();
+  const form = ev.target;
+  const errorEl = document.getElementById('error-episodio');
+  errorEl.hidden = true;
+  try {
+    await apiPost('/episodios', {
+      titulo: form.titulo.value,
+      estilo: form.estilo.value,
+      modo_voz: form.modo_voz.value,
+      guion_texto: form.guion_texto.value || null,
+    });
+    form.reset();
+    await cargarEpisodios();
+  } catch (e) {
+    errorEl.textContent = e.message;
+    errorEl.hidden = false;
+  }
+});
+
+cargarEpisodios();
+</script>
+{% endblock %}

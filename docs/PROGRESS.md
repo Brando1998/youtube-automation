@@ -243,6 +243,34 @@ retomarlas.
   `episode_spec` (escribe el guion en el directorio del tenant, corre el subproceso
   real, marca el job `completado`) y `hoja_personaje`, más el camino de error
   (entidad inexistente → job `fallido` con mensaje claro, sin intentar correr nada).
+  **Probado contra el Postgres real de la instancia** (jobs de los 5 tipos
+  disparados vía HTTP real, los 4 que tenían todo lo necesario completaron
+  `--dry-run` correctamente; `partes_personaje` falló como debía — exige una hoja
+  aprobada que en esta prueba nunca se generó de verdad, la regla de negocio del
+  script funcionando, no un bug). Datos de prueba limpiados después.
+
+- **Dashboard** (`apps/web/app/templates/` + `app/static/` + router
+  `paginas.py`): HTML servido por el mismo FastAPI (Jinja2 + JS vanilla, sin build
+  step ni Node, decisión del usuario frente a un SPA aparte — mismo origen que la
+  API, sin CORS). Páginas: `/login`, `/app/episodios` (lista + crear + detalle con
+  guion/spec/jobs), `/app/personajes` y `/app/fondos` (lista + crear + disparar sus
+  jobs con un formulario inline por fila), `/app/jobs` (todos los jobs recientes,
+  con auto-refresco mientras haya alguno corriendo). Cada formulario de generación
+  trae un checkbox "Simular" **marcado por defecto**, igual que la API.
+  Autenticación: mismo cookie de sesión que ya usaba `/auth/*`; las rutas de página
+  redirigen a `/login` en vez de devolver 401 JSON (`app/paginas_deps.py`, aparte de
+  `app/deps.py` que sigue siendo lo que usan los routers de la API).
+  **Verificado sin navegador** (la extensión de Chrome no estaba conectada en esta
+  sesión — dejarlo dicho explícitamente en vez de asumir que "debería andar"):
+  sintaxis de `app.js` y de los `<script>` de cada plantilla confirmada con
+  `node --check`; y el flujo HTTP completo probado contra el Postgres real de la
+  instancia con cookies de sesión reales — login, cada página autenticada
+  (`/app/episodios`, detalle de episodio con el id correcto embebido, personajes,
+  fondos, jobs) devuelve el HTML esperado, el nav no aparece en `/login` estando
+  anónimo, y logout invalida la sesión (las páginas protegidas vuelven a
+  redirigir). **Falta la verificación visual real en navegador** (clicks, que los
+  formularios de verdad disparen los jobs, que el polling actualice la UI) — eso
+  sigue pendiente de confirmar cuando la extensión de Chrome esté disponible.
 
 ## ✅ Fase A4 desbloqueada — causa real: falta de perfil de pago de Marketplace en USD
 
