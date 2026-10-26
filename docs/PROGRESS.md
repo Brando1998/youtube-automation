@@ -178,6 +178,30 @@ retomarlas.
   **Probado localmente sin tocar AWS**: con una hoja sintética + `--dry-run`, confirma
   que arma el plan de 13 llamadas correctamente, y que bloquea con error claro tanto si
   la hoja no está aprobada como si faltan regiones requeridas en el JSON.
+- **`apps/pipeline_2d/generar_fondo.py`** (nuevo): Fase A5 — fondos en capas (cielo,
+  lejano, medio, cabaña, ...). A diferencia de personajes, cada capa se genera
+  aislada directamente (`text-to-image` con Stable Image Core + el style guide,
+  pidiendo "isolated on a plain flat white background, no scene elements") y después
+  pasa por Remove Background — no hay hoja de la que recortar. Composición de capas
+  (qué dibuja cada una, profundidad, luces, origen de humo) va en `--spec`, escrito a
+  mano (`fondo_spec.ejemplo.json` usa el mismo id/capas/luces/humo que el mock de
+  `catalog/fondos.tsx`, para no tocar el renderer al conectar el fondo real).
+  **Probado localmente**: `--dry-run` arma el plan de 8 llamadas sin importar boto3
+  siquiera, y valida specs mal formados (sin capas, depth fuera de [0,1]).
+- **`apps/pipeline_audio/generar_voz_polly.py`** (nuevo): Fase A6, camino
+  "narrador"/voces sintéticas — paralelo a `generar_audio_local.py` (que parte de
+  audio grabado con Whisper+Rhubarb), mismo formato de salida (`palabras`/`visemas`
+  por frame) para que `EpisodeRenderer.tsx` no necesite saber cuál de los dos se usó.
+  Dos llamadas a Polly por línea (la API no da audio + marcas juntos):
+  `SpeechMarkTypes=["word","viseme"]` para los tiempos, y una segunda en mp3 para el
+  audio real — a diferencia del camino Whisper/Rhubarb, acá **no** queda pendiente
+  agregar el audio al render, Polly ya lo da. Mapeo de los 18 visemas de Polly
+  (`p/t/S/T/f/k/i/l/r/s/u/@/a/e/E/o/O/sil`) a nuestros 7 `VisemaCode` verificado
+  contra la tabla oficial de fonemas/visemas de Polly, no adivinado. Voz por defecto
+  `Lucia` (es-ES, neural) — confirmada real en la documentación de voces de Polly, no
+  supuesta. **Probado localmente sin tocar AWS**: `--dry-run`, y la conversión de
+  marcas NDJSON sintéticas a frames/visemas verificada con un caso de prueba a mano
+  (confirma el mapeo de visemas y la inferencia de `fin_frame` por pares consecutivos).
 
 ## ✅ Fase A4 desbloqueada — causa real: falta de perfil de pago de Marketplace en USD
 
