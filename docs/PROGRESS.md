@@ -149,6 +149,36 @@ pero **sigue bloqueado por un problema de pago de AWS Marketplace** (ver secció
 "Fase A4" abajo) antes de poder generar el personaje de verdad y conectarlo al
 catálogo/renderer ya construidos.
 
+## Pausa de costos AWS (decisión del usuario, 2026-10-26)
+
+El usuario pidió explícitamente **no generar más costo de AWS por ahora** — primero
+quiere el sistema completo (backend multitenant, resto del pipeline, front/dashboard)
+y recién después probar la generación real de principio a fin. Mientras tanto se
+sigue avanzando **solo código** (sin llamar a Bedrock/Polly), y cada script nuevo se
+prueba localmente con datos sintéticos (`--dry-run` o equivalente) en vez de contra la
+API real. La Fase A4 real (generar la hoja/partes de Lucía de verdad) y el resto de
+las fases con costo (A5 fondos, A6 Polly) quedan pendientes hasta que el usuario pida
+retomarlas.
+
+- **`apps/pipeline_2d/generar_partes.py`** (nuevo): Fase A4 paso 2 — separa una hoja
+  **ya aprobada** (`hoja.meta.json: aprobado=true`, si no, aborta con error explícito)
+  en las partes del puppet que ya espera `CharacterPuppet.tsx` (mismo contrato:
+  `cuerpo/cabeza/ojosAbiertos/ojosCerrados/cejas/bocas[VisemaCode]/prop`,
+  `Pivote{x,y}`). Sigue el plan documentado en `docs/PLAN.md`: cada parte se recorta
+  de la hoja (regiones en píxeles, en un JSON escrito a mano tras revisar la hoja —
+  ver `regiones.ejemplo.json`, el script no adivina dónde está cada parte) y pasa por
+  **Remove Background** de Stability (`us.stability.stable-image-remove-background-v1:0`)
+  para quedar con fondo transparente real. Las 6 bocas que no son "reposo" se generan
+  con **Search and Replace** (`us.stability.stable-image-search-replace-v1:0`,
+  `search_prompt: "mouth"` + un prompt de forma por visema, mismos 7 códigos que ya
+  usa `generar_audio_local.py`/Rhubarb) antes de quitarles el fondo. Formato de ambas
+  llamadas verificado contra la documentación oficial de AWS (no adivinado) — nota:
+  estos dos servicios no tienen endpoint in-region en `us-west-2` como sí tiene Stable
+  Image Core, necesitan el id con prefijo `us.` (enrutamiento Geo).
+  **Probado localmente sin tocar AWS**: con una hoja sintética + `--dry-run`, confirma
+  que arma el plan de 13 llamadas correctamente, y que bloquea con error claro tanto si
+  la hoja no está aprobada como si faltan regiones requeridas en el JSON.
+
 ## ✅ Fase A4 desbloqueada — causa real: falta de perfil de pago de Marketplace en USD
 
 Quedó resuelto, pero el camino fue más largo de lo esperado — queda documentado para

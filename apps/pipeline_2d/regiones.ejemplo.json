@@ -1,0 +1,12 @@
+{
+  "_comentario": "Ejemplo de archivo --regiones para generar_partes.py. Las cajas (x,y,w,h en píxeles) se miden a mano mirando la hoja.png real de cada personaje — estos valores son solo de ejemplo, no sirven para una hoja real sin ajustarlos. Los *_pivot son coordenadas relativas al origen del puppet (los pies, 0,0), no a la hoja — ver cabezaPivot/propPivot en CharacterPuppet.tsx.",
+  "cuerpo": { "x": 60, "y": 320, "w": 420, "h": 560 },
+  "cabeza": { "x": 150, "y": 120, "w": 240, "h": 240 },
+  "ojos_abiertos": { "x": 190, "y": 190, "w": 160, "h": 60 },
+  "ojos_cerrados": { "x": 190, "y": 190, "w": 160, "h": 60 },
+  "cejas": { "x": 190, "y": 170, "w": 160, "h": 30 },
+  "boca_reposo": { "x": 210, "y": 260, "w": 120, "h": 50 },
+  "prop": { "x": 480, "y": 420, "w": 100, "h": 140 },
+  "cabeza_pivot": { "x": 0, "y": 200 },
+  "prop_pivot": { "x": 60, "y": 110 }
+}
