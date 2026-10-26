@@ -2,6 +2,8 @@ tools/blender/
 tools/ffmpeg/
 tools/rhubarb/
 apps/pipeline_audio/.venv/
+apps/web/.venv/
+apps/web/data/
 .claude/
 node_modules/
 apps/remotion-ilustrado/out/
