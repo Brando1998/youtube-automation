@@ -1,4 +1,6 @@
 import uuid
+from datetime import datetime
+from typing import Any
 
 from pydantic import BaseModel, EmailStr, Field
 
@@ -21,5 +23,91 @@ class UsuarioOut(BaseModel):
     email: EmailStr
     nombre: str
     rol: str
+
+    model_config = {"from_attributes": True}
+
+
+class EpisodioCreate(BaseModel):
+    titulo: str = Field(min_length=1, max_length=300)
+    estilo: str = Field(pattern="^(3d|ilustrado)$")
+    modo_voz: str = Field(pattern="^(narrador|dialogos|mixto)$")
+    guion_texto: str | None = None
+
+
+class EpisodioOut(BaseModel):
+    id: uuid.UUID
+    tenant_id: uuid.UUID
+    titulo: str
+    estilo: str
+    modo_voz: str
+    estado: str
+    guion_texto: str | None
+    spec_json: dict | None
+    creado_en: datetime
+    actualizado_en: datetime
+
+    model_config = {"from_attributes": True}
+
+
+class PersonajeCreate(BaseModel):
+    nombre: str = Field(min_length=1, max_length=200)
+    asset_ref: str = Field(min_length=1, max_length=300)
+    color_subtitulo: str | None = None
+
+
+class PersonajeOut(BaseModel):
+    id: uuid.UUID
+    tenant_id: uuid.UUID
+    nombre: str
+    asset_ref: str
+    color_subtitulo: str | None
+    estado: str
+    creado_en: datetime
+
+    model_config = {"from_attributes": True}
+
+
+class FondoCreate(BaseModel):
+    nombre: str = Field(min_length=1, max_length=200)
+    asset_ref: str = Field(min_length=1, max_length=300)
+
+
+class FondoOut(BaseModel):
+    id: uuid.UUID
+    tenant_id: uuid.UUID
+    nombre: str
+    asset_ref: str
+    estado: str
+    creado_en: datetime
+
+    model_config = {"from_attributes": True}
+
+
+class JobCreate(BaseModel):
+    tipo: str = Field(pattern="^(episode_spec|hoja_personaje|partes_personaje|fondo|voz_polly)$")
+    episodio_id: uuid.UUID | None = None
+    personaje_id: uuid.UUID | None = None
+    fondo_id: uuid.UUID | None = None
+    parametros: dict[str, Any] = Field(default_factory=dict)
+    # Por defecto siempre simula (--dry-run) — pausa de costos AWS del usuario
+    # (ver docs/PROGRESS.md). Un cliente tiene que pedir explícitamente lo
+    # contrario para gastar de verdad.
+    simular: bool = True
+
+
+class JobOut(BaseModel):
+    id: uuid.UUID
+    tenant_id: uuid.UUID
+    tipo: str
+    estado: str
+    episodio_id: uuid.UUID | None
+    personaje_id: uuid.UUID | None
+    fondo_id: uuid.UUID | None
+    parametros: dict | None
+    resultado: dict | None
+    error: str | None
+    creado_en: datetime
+    iniciado_en: datetime | None
+    terminado_en: datetime | None
 
     model_config = {"from_attributes": True}

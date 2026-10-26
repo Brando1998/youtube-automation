@@ -10,3 +10,4 @@ itsdangerous>=2.2
 python-multipart>=0.0.20
 boto3>=1.43
 jsonschema>=4.23
+Pillow>=10

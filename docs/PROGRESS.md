@@ -221,6 +221,28 @@ retomarlas.
   y el loop completo de reintento probado con un cliente de Bedrock simulado —
   primera respuesta inválida se corrige en el segundo turno, y agotar los reintentos
   sin éxito lanza un error claro en vez de devolver un spec roto.
+- **Backend conectado al pipeline** (`apps/web/app/pipeline_runner.py` + routers
+  `episodios`/`personajes`/`fondos`/`jobs`): `POST /jobs` dispara cualquiera de los 5
+  scripts (`episode_spec`, `hoja_personaje`, `partes_personaje`, `fondo`,
+  `voz_polly`) como subproceso del mismo intérprete de la app (por eso
+  `apps/web/requirements.txt` ahora también trae Pillow, además de boto3/jsonschema
+  que ya tenía) — sin cola de tareas (Celery/RQ sería de más por ahora), corre en un
+  hilo de fondo vía `BackgroundTasks`. **`simular: true` por defecto en todo
+  `JobCreate`** — se traduce a `--dry-run` en el script correspondiente; hay que
+  pedir `simular: false` explícitamente para gastar de verdad (pausa de costos del
+  usuario). Al completar un job real (no simulado) actualiza el resto del modelo:
+  `episode_spec` llena `Episodio.spec_json` y pasa a `estado=revision`; los demás
+  crean una fila `Asset` apuntando al archivo generado, sin aprobar todavía.
+  De paso, `generar_hoja.py` (el único script del pipeline que quedaba sin
+  `--dry-run`, por haberse escrito antes de la pausa de costos) lo recibió también,
+  para que los 5 tipos de job puedan simularse de forma uniforme.
+  **Probado localmente sin Postgres ni AWS**: la app importa limpio y expone los 13
+  endpoints esperados (`/auth/*`, `/episodios`, `/personajes`, `/fondos`, `/jobs` +
+  sus `/{id}`); `_construir_comando` arma el comando correcto para los 5 tipos de
+  job con una DB simulada; y `_ejecutar` probado de punta a punta en `--dry-run` para
+  `episode_spec` (escribe el guion en el directorio del tenant, corre el subproceso
+  real, marca el job `completado`) y `hoja_personaje`, más el camino de error
+  (entidad inexistente → job `fallido` con mensaje claro, sin intentar correr nada).
 
 ## ✅ Fase A4 desbloqueada — causa real: falta de perfil de pago de Marketplace en USD
 
