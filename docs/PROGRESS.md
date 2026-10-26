@@ -202,6 +202,25 @@ retomarlas.
   supuesta. **Probado localmente sin tocar AWS**: `--dry-run`, y la conversión de
   marcas NDJSON sintéticas a frames/visemas verificada con un caso de prueba a mano
   (confirma el mapeo de visemas y la inferencia de `fin_frame` por pares consecutivos).
+- **`apps/pipeline_spec/generar_episode_spec.py`** (nuevo): genera
+  `episode_spec/<id>.json` de verdad a partir de un guion de texto, vía Claude en
+  Bedrock — hasta ahora `ejemplo_15s.json` estaba escrito a mano. Usa **InvokeModel**
+  (no Converse/Messages API directa): body con `anthropic_version:
+  "bedrock-2023-05-31"` + `messages` + `max_tokens`, modelId
+  `us.anthropic.claude-sonnet-5` (el id plano no tiene endpoint in-region en
+  us-east-1, mismo hallazgo de "necesita prefijo Geo" que ya vimos con Stability).
+  Modelo por defecto **Sonnet 5, no Opus** — decisión explícita de costo del usuario,
+  configurable con `--modelo`. En vez de apostarle a un structured-output específico
+  de Bedrock para un modelo recién lanzado (no documentado con certeza), le pide a
+  Claude JSON crudo y lo valida contra `episode_spec/schema.json` con `jsonschema`
+  (mismo patrón que ya usa el proyecto desde la Fase A1) — si no valida, reintenta
+  devolviéndole el error de validación en el siguiente turno, hasta
+  `--max-reintentos` veces. **Probado localmente sin tocar AWS**: `--dry-run`;
+  `extraer_json` confirmado contra una respuesta con fences markdown y una cruda;
+  `episode_spec/ejemplo_15s.json` revalidado contra el schema real (sigue pasando);
+  y el loop completo de reintento probado con un cliente de Bedrock simulado —
+  primera respuesta inválida se corrige en el segundo turno, y agotar los reintentos
+  sin éxito lanza un error claro en vez de devolver un spec roto.
 
 ## ✅ Fase A4 desbloqueada — causa real: falta de perfil de pago de Marketplace en USD
 
