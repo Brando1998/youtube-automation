@@ -1,0 +1,15 @@
+{
+  "_comentario": "Ejemplo de archivo --spec para generar_fondo.py. Mismo id y capas/luces/humo que el mock de prueba en apps/remotion-ilustrado/src/catalog/fondos.tsx, para que al conectar el fondo real no haga falta tocar el renderer — solo reemplazar las formas placeholder por <image src=...>.",
+  "id": "2d/fondos/cabana-bosque-noche",
+  "capas": [
+    { "id": "cielo", "depth": 0, "sujeto": "simple night sky silhouette with one bright full moon, no clouds" },
+    { "id": "lejano", "depth": 0.15, "sujeto": "distant rolling hills and treeline silhouette, minimal detail" },
+    { "id": "medio", "depth": 0.3, "sujeto": "two simple dark pine tree silhouettes" },
+    { "id": "cabana", "depth": 0.5, "sujeto": "small wooden cabin silhouette with one lit window" }
+  ],
+  "luces": [
+    { "x": 420, "y": 170, "depth": 0, "radio": 70, "sprite": "cool", "intensidad": 0.35, "parpadeo": false },
+    { "x": 445, "y": 700, "depth": 0.5, "radio": 55, "sprite": "warm", "intensidad": 0.4, "parpadeo": true, "seed": 2 }
+  ],
+  "humo_origen": { "x": 460, "y": 700, "depth": 0.5 }
+}
