@@ -16,8 +16,6 @@ import os
 import random
 from datetime import datetime, timezone
 
-import boto3
-
 STYLE_GUIDE_PATH = os.path.join(os.path.dirname(os.path.abspath(__file__)), "..", "..", "style_guide.json")
 STABILITY_REGION = "us-west-2"  # Stability AI en Bedrock solo existe en us-west-2 (ver docs/EC2_SETUP.md)
 MODEL_ID = "stability.stable-image-core-v1:1"
@@ -38,11 +36,19 @@ def construir_prompt(style_guide, sujeto):
     return prompt, style_guide["negative_prompt"]
 
 
-def generar_hoja(personaje_id, sujeto, out_dir, aspect_ratio="2:3", seed=None):
+def generar_hoja(personaje_id, sujeto, out_dir, aspect_ratio="2:3", seed=None, dry_run=False):
     style_guide = cargar_style_guide()
     prompt, negative_prompt = construir_prompt(style_guide, sujeto)
     seed = seed if seed is not None else random.randint(0, 4294967295)
 
+    if dry_run:
+        print(f"[dry-run] personaje_id={personaje_id}, aspect_ratio={aspect_ratio}, seed={seed}")
+        print(f"[dry-run] prompt: {prompt[:140]}...")
+        print(f"[dry-run] modelo={MODEL_ID}, region={STABILITY_REGION}")
+        print("[dry-run] 1 llamada a Bedrock se haría (0 ejecutadas). Ninguna conexión de red fue realizada.")
+        return None, None, 0
+
+    import boto3
     client = boto3.client("bedrock-runtime", region_name=STABILITY_REGION)
     body = json.dumps({
         "prompt": prompt,
@@ -88,8 +94,13 @@ if __name__ == "__main__":
     parser.add_argument("--out", required=True, help="carpeta de salida")
     parser.add_argument("--aspect-ratio", default="2:3")
     parser.add_argument("--seed", type=int, default=None)
+    parser.add_argument("--dry-run", action="store_true", help="valida y muestra el plan sin llamar a Bedrock")
     args = parser.parse_args()
 
-    hoja_path, meta_path, nbytes = generar_hoja(args.id, args.sujeto, args.out, args.aspect_ratio, args.seed)
+    hoja_path, meta_path, nbytes = generar_hoja(
+        args.id, args.sujeto, args.out, args.aspect_ratio, args.seed, dry_run=args.dry_run
+    )
+    if hoja_path is None:
+        raise SystemExit(0)
     print(f"Hoja generada: {hoja_path} ({nbytes} bytes)")
     print(f"Metadatos: {meta_path}")
