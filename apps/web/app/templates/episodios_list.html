@@ -35,7 +35,7 @@
 <div class="panel">
   <table>
     <thead>
-      <tr><th>Título</th><th>Estilo</th><th>Modo voz</th><th>Estado</th><th>Creado</th></tr>
+      <tr><th>Título</th><th>Estilo</th><th>Modo voz</th><th>Estado</th><th>Creado</th><th></th></tr>
     </thead>
     <tbody id="tabla-episodios"></tbody>
   </table>
@@ -57,10 +57,23 @@ async function cargarEpisodios() {
       <td>${ep.modo_voz}</td>
       <td>${badgeEstado(ep.estado)}</td>
       <td>${formatFecha(ep.creado_en)}</td>
+      <td><button class="btn-link btn-eliminar" data-episodio-id="${ep.id}" data-titulo="${ep.titulo}">Eliminar</button></td>
     `;
     tbody.appendChild(tr);
   }
 }
+
+document.getElementById('tabla-episodios').addEventListener('click', async (ev) => {
+  const btn = ev.target.closest('.btn-eliminar');
+  if (!btn) return;
+  if (!confirm(`¿Eliminar el episodio "${btn.dataset.titulo}"? Esto también borra sus jobs y assets. No se puede deshacer.`)) return;
+  try {
+    await apiDelete(`/episodios/${btn.dataset.episodioId}`);
+    await cargarEpisodios();
+  } catch (e) {
+    alert('No se pudo eliminar: ' + e.message);
+  }
+});
 
 document.getElementById('form-episodio').addEventListener('submit', async (ev) => {
   ev.preventDefault();

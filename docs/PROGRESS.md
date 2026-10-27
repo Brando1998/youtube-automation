@@ -268,9 +268,24 @@ retomarlas.
   (`/app/episodios`, detalle de episodio con el id correcto embebido, personajes,
   fondos, jobs) devuelve el HTML esperado, el nav no aparece en `/login` estando
   anónimo, y logout invalida la sesión (las páginas protegidas vuelven a
-  redirigir). **Falta la verificación visual real en navegador** (clicks, que los
-  formularios de verdad disparen los jobs, que el polling actualice la UI) — eso
-  sigue pendiente de confirmar cuando la extensión de Chrome esté disponible.
+  redirigir). La verificación visual en navegador de verdad la hizo el usuario
+  directamente (extensión de Chrome de Claude no disponible en esta sesión) vía
+  túnel SSH (`ssh -i youtube-automation.pem -N -L 8000:127.0.0.1:8000
+  ubuntu@52.5.177.143`) — confirmó que el dashboard funciona.
+
+- **Cuenta real creada**: tenant "Mi Canal", usuario `cootranscolltda28@gmail.com`
+  (contraseña generada por `scripts/crear_tenant.py`, entregada al usuario por
+  chat). El email viene del contexto de la sesión, no fue una elección explícita
+  del usuario — lo confirmó cuando se le preguntó, queda así.
+
+- **`DELETE /episodios/{id}`** (nuevo, pedido por el usuario tras probar el
+  dashboard — creó un episodio de prueba real y pidió poder borrarlo): borra en
+  cascada los `generation_jobs` y `assets` que pertenecen a ese episodio
+  (personajes/fondos usados en esos jobs NO se tocan — son entidades
+  independientes). Botón "Eliminar" agregado en `/app/episodios` (por fila) y en
+  el detalle del episodio, con confirmación nativa del navegador antes de borrar.
+  **Probado end-to-end contra el Postgres real**: episodio + job atado a él,
+  `DELETE` devuelve 204, el episodio pasa a 404, y el job desaparece con él.
 
 ## ✅ Fase A4 desbloqueada — causa real: falta de perfil de pago de Marketplace en USD
 

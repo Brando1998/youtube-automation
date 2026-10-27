@@ -47,3 +47,18 @@ def obtener_episodio(episodio_id: uuid.UUID, tenant_id: uuid.UUID = Depends(get_
     if episodio is None or episodio.tenant_id != tenant_id:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Episodio no encontrado")
     return episodio
+
+
+@router.delete("/{episodio_id}", status_code=status.HTTP_204_NO_CONTENT)
+def eliminar_episodio(episodio_id: uuid.UUID, tenant_id: uuid.UUID = Depends(get_tenant_id), db: Session = Depends(get_db)):
+    episodio = db.get(models.Episodio, episodio_id)
+    if episodio is None or episodio.tenant_id != tenant_id:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Episodio no encontrado")
+
+    # El episodio es dueño de sus jobs/assets (no al revés) — se borran con él.
+    # personajes/fondos son entidades independientes, no se tocan aunque se hayan
+    # usado en jobs de este episodio.
+    db.query(models.GenerationJob).filter(models.GenerationJob.episodio_id == episodio_id).delete()
+    db.query(models.Asset).filter(models.Asset.episodio_id == episodio_id).delete()
+    db.delete(episodio)
+    db.commit()

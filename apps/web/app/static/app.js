@@ -17,6 +17,11 @@ async function apiPost(url, body) {
   return resp.json();
 }
 
+async function apiDelete(url) {
+  const resp = await fetch(url, { method: 'DELETE' });
+  if (!resp.ok && resp.status !== 204) throw await erroApi(resp);
+}
+
 async function erroApi(resp) {
   const datos = await resp.json().catch(() => ({}));
   return new Error(datos.detail || `Error ${resp.status}`);

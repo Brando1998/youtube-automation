@@ -4,7 +4,10 @@
 <p><a href="/app/episodios">&larr; Episodios</a></p>
 <div class="flex-entre">
   <h1>{{ episodio.titulo }}</h1>
-  <span id="badge-estado">{{ "" }}</span>
+  <div>
+    <span id="badge-estado">{{ "" }}</span>
+    <button class="btn-link" id="btn-eliminar-episodio">Eliminar episodio</button>
+  </div>
 </div>
 <p class="vacio" style="padding:0">{{ episodio.estilo }} · {{ episodio.modo_voz }} · creado {{ episodio.creado_en }}</p>
 
@@ -87,6 +90,16 @@ async function recargarEpisodio() {
     ? JSON.stringify(ep.spec_json, null, 2)
     : '(todavía no se generó)';
 }
+
+document.getElementById('btn-eliminar-episodio').addEventListener('click', async () => {
+  if (!confirm(`¿Eliminar el episodio "{{ episodio.titulo }}"? Esto también borra sus jobs y assets. No se puede deshacer.`)) return;
+  try {
+    await apiDelete(`/episodios/${EPISODIO_ID}`);
+    window.location.href = '/app/episodios';
+  } catch (e) {
+    alert('No se pudo eliminar: ' + e.message);
+  }
+});
 
 document.getElementById('btn-generar-spec').addEventListener('click', async () => {
   const btn = document.getElementById('btn-generar-spec');
