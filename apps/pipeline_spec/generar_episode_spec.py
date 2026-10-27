@@ -1,31 +1,34 @@
-"""Genera episode_spec/<id>.json real a partir de un guion de texto, vía Claude en
-Bedrock (InvokeModel, no la API directa de Anthropic — misma convención que el resto
-del proyecto para "anthropic.*", ver docs/EC2_SETUP.md). Hasta ahora el único spec que
-existía (ejemplo_15s.json) estaba escrito a mano; este script es la pieza que lo
+"""Genera episode_spec/<id>.json real a partir de un guion de texto, vía un LLM en
+Bedrock (InvokeModel, no la API directa de cada proveedor). Hasta ahora el único spec
+que existía (ejemplo_15s.json) estaba escrito a mano; este script es la pieza que lo
 generaría de verdad a partir de lo que escriba el usuario.
 
-Formato de la llamada (InvokeModel, no Converse/Messages-API directa) verificado
-contra la documentación oficial de AWS, no adivinado: body con
-`anthropic_version: "bedrock-2023-05-31"` + `messages` + `max_tokens`, modelId con
-el inference profile `us.anthropic.claude-sonnet-5` (el id plano "anthropic.claude-
-sonnet-5" no tiene endpoint in-region en us-east-1, igual que ya pasaba con Stability
-en generar_partes.py/generar_fondo.py — necesita el prefijo de enrutamiento Geo).
+Soporta dos proveedores (detectado por el prefijo del modelId, ver `invocar_modelo`):
+- **Amazon Nova** (`amazon.nova-*`) — proveedor por defecto, decisión explícita de
+  costo del usuario: no pasa por AWS Marketplace (a diferencia de Anthropic/Stability,
+  que sí y ya nos dieron dolores de cabeza de permisos/facturación — ver
+  docs/PROGRESS.md), corre in-region en us-east-1 sin inference profile, y es
+  órdenes de magnitud más barato que Claude para esta tarea (convertir texto a JSON
+  que cumple un schema no necesita el modelo más caro). Formato de request/response
+  (`schemaVersion`, `inferenceConfig`, `output.message.content[0].text`) verificado
+  contra la documentación oficial de AWS, no adivinado.
+- **Claude** (`anthropic.*` / `us.anthropic.*`) — se mantiene como opción si un guion
+  complejo necesita más calidad; formato `anthropic_version: "bedrock-2023-05-31"`
+  verificado igual contra la documentación oficial. El id plano "anthropic.claude-
+  sonnet-5" no tiene endpoint in-region en us-east-1 (como ya pasaba con Stability en
+  generar_partes.py/generar_fondo.py) — hace falta el inference profile
+  `us.anthropic.claude-sonnet-5`.
 
-Modelo por defecto: Sonnet 5, no Opus — decisión explícita de costo del usuario
-(pausa de costos AWS, ver docs/PROGRESS.md); para esta tarea (convertir texto a JSON
-que cumple un schema) Sonnet alcanza de sobra. Configurable con --modelo si hace
-falta más calidad en guiones complejos.
-
-Como Bedrock no expone con certeza el mismo `output_config.format` de la API directa
-de Anthropic para este modelo recién lanzado, no se apuesta a structured outputs:
-se le pide a Claude que devuelva SOLO JSON y se valida el resultado contra
-episode_spec/schema.json (mismo patrón de validación que ya usa el proyecto, ver
-docs/PROGRESS.md Fase A1) — si falla, se reintenta pasándole el error de vuelta,
-hasta --max-reintentos veces.
+Como Bedrock no da la misma garantía de structured outputs para todos los modelos,
+no se apuesta a eso: se le pide al modelo que devuelva SOLO JSON y se valida el
+resultado contra episode_spec/schema.json (mismo patrón de validación que ya usa el
+proyecto, ver docs/PROGRESS.md Fase A1) — si falla, se reintenta pasándole el error
+de vuelta, hasta --max-reintentos veces. Mismo mecanismo para ambos proveedores.
 
 Uso:
   python3 generar_episode_spec.py --guion guion.txt --episodio-id ej1 \
-      --out episode_spec/ej1.json --estilo ilustrado --modo-voz mixto [--dry-run]
+      --out episode_spec/ej1.json --estilo ilustrado --modo-voz mixto \
+      [--modelo amazon.nova-lite-v1:0] [--dry-run]
 """
 import argparse
 import json
@@ -34,8 +37,8 @@ import re
 
 REPO_ROOT = os.path.join(os.path.dirname(os.path.abspath(__file__)), "..", "..")
 SCHEMA_PATH = os.path.join(REPO_ROOT, "episode_spec", "schema.json")
-BEDROCK_REGION = "us-east-1"  # anthropic.* vive aquí, a diferencia de stability.* (us-west-2)
-MODEL_ID_DEFAULT = "us.anthropic.claude-sonnet-5"  # inference profile Geo US, ver docstring
+BEDROCK_REGION = "us-east-1"  # tanto amazon.* como anthropic.* viven acá, a diferencia de stability.* (us-west-2)
+MODEL_ID_DEFAULT = "amazon.nova-lite-v1:0"  # in-region, sin inference profile — ver docstring
 ANTHROPIC_VERSION = "bedrock-2023-05-31"
 
 
@@ -78,7 +81,7 @@ def extraer_json(texto):
     return texto[inicio:fin + 1]
 
 
-def invocar_modelo(client, model_id, system_prompt, messages, max_tokens):
+def _invocar_claude(client, model_id, system_prompt, messages, max_tokens):
     body = json.dumps({
         "anthropic_version": ANTHROPIC_VERSION,
         "system": system_prompt,
@@ -88,6 +91,25 @@ def invocar_modelo(client, model_id, system_prompt, messages, max_tokens):
     resp = client.invoke_model(modelId=model_id, body=body)
     out = json.loads(resp["body"].read())
     return out["content"][0]["text"]
+
+
+def _invocar_nova(client, model_id, system_prompt, messages, max_tokens):
+    nova_messages = [{"role": m["role"], "content": [{"text": m["content"]}]} for m in messages]
+    body = json.dumps({
+        "schemaVersion": "messages-v1",
+        "system": [{"text": system_prompt}],
+        "messages": nova_messages,
+        "inferenceConfig": {"maxTokens": max_tokens, "temperature": 0},
+    })
+    resp = client.invoke_model(modelId=model_id, body=body)
+    out = json.loads(resp["body"].read())
+    return out["output"]["message"]["content"][0]["text"]
+
+
+def invocar_modelo(client, model_id, system_prompt, messages, max_tokens):
+    if "nova" in model_id:
+        return _invocar_nova(client, model_id, system_prompt, messages, max_tokens)
+    return _invocar_claude(client, model_id, system_prompt, messages, max_tokens)
 
 
 def generar_episode_spec(guion_texto, episodio_id, estilo, modo_voz, personajes_catalogo,

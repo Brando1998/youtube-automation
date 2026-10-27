@@ -25,6 +25,14 @@
     <input type="checkbox" id="chk-simular-spec" checked>
     Simular (no genera el spec real, solo valida que el pipeline funcione)
   </label>
+  <label>Modelo
+    <select id="sel-modelo-spec">
+      <option value="amazon.nova-micro-v1:0">Nova Micro — el más barato ($0.035 / $0.14 por millón de tokens)</option>
+      <option value="amazon.nova-lite-v1:0" selected>Nova Lite — recomendado ($0.06 / $0.24)</option>
+      <option value="amazon.nova-pro-v1:0">Nova Pro — mejor calidad ($0.80 / $3.20)</option>
+      <option value="us.anthropic.claude-sonnet-5">Claude Sonnet 5 (Anthropic, mucho más caro: $3 / $15)</option>
+    </select>
+  </label>
   <button class="btn" id="btn-generar-spec">Generar episode spec</button>
   <p id="estado-job-spec" class="vacio" hidden></p>
   <pre class="json-viewer" id="spec-viewer">{{ spec_json or "(todavía no se generó)" }}</pre>
@@ -104,12 +112,16 @@ document.getElementById('btn-eliminar-episodio').addEventListener('click', async
 document.getElementById('btn-generar-spec').addEventListener('click', async () => {
   const btn = document.getElementById('btn-generar-spec');
   const simular = document.getElementById('chk-simular-spec').checked;
+  const modelo = document.getElementById('sel-modelo-spec').value;
   const estadoEl = document.getElementById('estado-job-spec');
   btn.disabled = true;
   estadoEl.hidden = false;
   estadoEl.textContent = 'Creando job...';
   try {
-    const job = await apiPost('/jobs', { tipo: 'episode_spec', episodio_id: EPISODIO_ID, simular });
+    const job = await apiPost('/jobs', {
+      tipo: 'episode_spec', episodio_id: EPISODIO_ID, simular,
+      parametros: { modelo },
+    });
     pollJob(job.id, async (j, err) => {
       if (err) { estadoEl.textContent = 'Error consultando el job: ' + err.message; btn.disabled = false; return; }
       estadoEl.innerHTML = 'Job: ' + badgeEstado(j.estado);
