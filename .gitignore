@@ -4,6 +4,8 @@ tools/rhubarb/
 apps/pipeline_audio/.venv/
 apps/web/.venv/
 apps/web/data/
+manual_usuario/.venv/
+manual_usuario/site/
 .claude/
 node_modules/
 apps/remotion-ilustrado/out/

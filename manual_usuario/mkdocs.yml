@@ -1,0 +1,46 @@
+site_name: Manual de usuario — youtube-automation
+site_description: Cómo construir un episodio, de la idea al video descargado.
+theme:
+  name: material
+  language: es
+  palette:
+    - scheme: default
+      primary: deep orange
+      toggle:
+        icon: material/weather-night
+        name: Modo oscuro
+    - scheme: slate
+      primary: deep orange
+      toggle:
+        icon: material/weather-sunny
+        name: Modo claro
+  features:
+    - navigation.sections
+    - navigation.top
+    - content.code.copy
+    - toc.integrate
+
+nav:
+  - Inicio: index.md
+  - 1. Entrar al dashboard: 01-entrar.md
+  - 2. Crear el episodio y el presupuesto: 02-episodio-presupuesto.md
+  - 3. Guion → episode spec: 03-guion-spec.md
+  - 4. Personajes (hoja → partes → aprobar): 04-personajes.md
+  - 5. Fondos (capas → aprobar): 05-fondos.md
+  - 6. Voz de cada línea (Polly → aprobar): 06-voz.md
+  - 7. Renderizar el episodio completo: 07-renderizar.md
+  - 8. Descargar y subir a YouTube: 08-descargar-subir-youtube.md
+  - Presupuesto y costos, en detalle: presupuesto.md
+  - Qué hacer si algo falla: solucion-problemas.md
+
+markdown_extensions:
+  - admonition
+  - pymdownx.details
+  - pymdownx.superfences:
+      custom_fences:
+        - name: mermaid
+          class: mermaid
+          format: !!python/name:pymdownx.superfences.fence_code_format
+  - tables
+  - toc:
+      permalink: true

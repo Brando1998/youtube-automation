@@ -7,6 +7,73 @@ pueda retomar el trabajo. El plan completo y las decisiones de arquitectura est�
 **Repo**: git inicializado localmente, rama de trabajo `dev` (nunca se hace commit/merge a
 `main` sin aprobación explícita del usuario, por instrucción global del usuario).
 
+## ✅ Sistema completo del lado del código (presupuesto, render de episodio, aprobación, manual) — 2026-10-30
+
+Cierre de una sesión larga pedida por el usuario para "completar el sistema sin
+gastar AWS todavía" antes de la prueba real de un episodio de 5 minutos. Todo lo
+de abajo es código/DB, **cero llamadas reales a AWS** (probado contra un Postgres
+descartable y datos fabricados stand-in, igual que la Fase A6).
+
+- **Presupuesto y costo por episodio**: `Episodio.presupuesto_usd` (nullable =
+  sin límite). Antes de un job real atribuible a un episodio (`episode_spec`,
+  `voz_polly` — los únicos con `episodio_id` en el modelo), se estima el costo
+  (`apps/web/app/costos.py`, precios de Stability/Polly verificados contra AWS
+  oficial salvo Stable Image Core/Ultra, que reusan la cifra de una sesión
+  anterior por limitaciones de scraping de la página dinámica de pricing) y se
+  bloquea si excede lo que queda de presupuesto, salvo `forzar: true` explícito.
+  `UsageLog` (existía la tabla, no se llenaba) ahora se llena de verdad: cada
+  script imprime una línea `USO_REAL: [...]` con su uso exacto tras una corrida
+  real, que `pipeline_runner._loguear_uso_real` parsea. Bug encontrado y
+  corregido de paso: el `--dry-run` de `generar_partes.py` contaba mal las
+  llamadas reales (cada visema son 2 llamadas — search_replace + remove_bg —
+  no 1). Dashboard: presupuesto editable, barra de costo acumulado, checkbox
+  "forzar" en los formularios que gastan.
+- **Catálogos reales conectados**: `FondoDef`/`PersonajeDef` (Remotion) aceptan
+  partes/capas reales (`src`, ruta a `public/`, vía `staticFile()` — Remotion no
+  lee rutas absolutas del filesystem) de forma aditiva, sin romper los mocks de
+  las composiciones `Prueba*`.
+- **Render de episodio completo**: composición `Episodio`
+  (`EpisodioCompleto.tsx`) encadena TODAS las tomas de TODAS las escenas del
+  spec con `<Series>`, duración calculada del spec real vía `calculateMetadata`
+  — antes solo existía el render de una toma sola. Nuevo job `render_episodio`:
+  arma el catálogo real desde los `Asset` **aprobados** del tenant
+  (`pipeline_runner.preparar_catalogo_remotion`, copia imágenes/audio al
+  `public/` de Remotion) y corre `remotion render` como subproceso — sin costo
+  de AWS, todo lo real ya se generó y aprobó antes. Bug real encontrado y
+  corregido: pasar `cwd` al subprocess rompía las rutas relativas de los demás
+  tipos de job (pensados para heredar el cwd del proceso backend) — ahora solo
+  `render_episodio` fija un `cwd` explícito (necesita correr desde
+  `apps/remotion-ilustrado` para que `npx remotion` encuentre `node_modules`),
+  con argumentos absolutos.
+- **Aprobación de assets — hueco preexistente que bloqueaba todo lo anterior**:
+  no existía ninguna forma de aprobar un asset generado (ni endpoint ni botón),
+  lo que habría dejado el pipeline real sin salida posible en cuanto se
+  necesitara un asset aprobado. Nuevo `apps/web/app/routers/assets.py`: listar,
+  previsualizar (imagen/audio/video) y aprobar — al aprobar, actualiza tanto la
+  fila en la DB como el campo `aprobado` del JSON en disco que los scripts del
+  pipeline ya leían (`hoja.meta.json`, `puppet.json`, `fondo.json`), sin tocar
+  la lógica de esos scripts. Dashboard: panel "Revisar y aprobar" en
+  personajes/fondos/episodio, con preview antes de aprobar.
+- **Descarga del video final**: botón en el detalle del episodio, apunta al
+  render más reciente.
+- **Manual de usuario** (`manual_usuario/`, MkDocs Material): documenta el
+  camino real completo (login → episodio+presupuesto → guion→spec →
+  personajes/fondos/voz → aprobar → renderizar → descargar → subir a YouTube a
+  mano, sin integración automática todavía) — ver `manual_usuario/README.md`
+  para servirlo en local.
+- **Verificado de punta a punta** (sin AWS): episodio de 2 tomas con imágenes/
+  audio stand-in fabricados (como los PNG de prueba de la Fase A6, no arte
+  real), render real vía HTTP de principio a fin — `Asset` creado, episodio
+  pasa a `estado=listo`, audio real en la pista de sonido (confirmado con
+  `ffprobe`/`volumedetect`), aprobación sincronizando DB+archivo en disco.
+
+**Pendiente real para la prueba de un episodio de 5 minutos (Fase F, con tu
+aprobación explícita de gasto)**: generar de verdad los personajes/fondos/voz
+de un guion largo (hoy solo se probó con `ejemplo_15s.json` repetido) y
+correr `render_episodio` sobre eso. El campo de voz por personaje en el
+formulario del dashboard también quedó pendiente de agregar (el backend ya lo
+soporta vía `parametros.voz`, el formulario de voz todavía no tiene ese input).
+
 ## ✅ Infraestructura AWS lista (EC2 + IAM role)
 
 Resuelto. El usuario provisionó todo siguiendo `docs/EC2_SETUP.md`:
