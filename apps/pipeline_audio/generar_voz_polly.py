@@ -97,7 +97,7 @@ def construir_visemas(marcas, fps):
     return visemas
 
 
-def generar_voz(texto, linea_id, fps, voz, engine, idioma, region, dry_run=False):
+def generar_voz(texto, linea_id, fps, voz, engine, idioma, region, audio_out=None, dry_run=False):
     if not texto.strip():
         raise ValueError("--texto no puede estar vacío")
 
@@ -132,7 +132,12 @@ def generar_voz(texto, linea_id, fps, voz, engine, idioma, region, dry_run=False
 
     palabras = construir_palabras(marcas, fps)
     visemas = construir_visemas(marcas, fps)
-    return {linea_id: {"palabras": palabras, "visemas": visemas}}, audio_bytes
+    return {linea_id: {
+        "fuente": "polly",
+        "archivo": os.path.abspath(audio_out),
+        "palabras": palabras,
+        "visemas": visemas,
+    }}, audio_bytes
 
 
 if __name__ == "__main__":
@@ -153,7 +158,8 @@ if __name__ == "__main__":
         parser.error("--audio-out es requerido salvo en --dry-run")
 
     resultado, audio_bytes = generar_voz(
-        args.texto, args.linea_id, args.fps, args.voz, args.engine, args.idioma, args.region, dry_run=args.dry_run
+        args.texto, args.linea_id, args.fps, args.voz, args.engine, args.idioma, args.region,
+        audio_out=args.audio_out, dry_run=args.dry_run
     )
     if resultado is None:
         raise SystemExit(0)

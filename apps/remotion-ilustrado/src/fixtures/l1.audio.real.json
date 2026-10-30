@@ -1,5 +1,7 @@
 {
   "l1": {
+    "fuente": "grabado",
+    "archivo": "audio/l1.mp3",
     "palabras": [
       {
         "texto": "Cada",
@@ -101,56 +103,61 @@
       {
         "tipo": "E",
         "inicio_frame": 34,
-        "fin_frame": 39
+        "fin_frame": 38
       },
       {
         "tipo": "O",
-        "inicio_frame": 39,
-        "fin_frame": 41
+        "inicio_frame": 38,
+        "fin_frame": 40
       },
       {
         "tipo": "E",
-        "inicio_frame": 41,
-        "fin_frame": 47
+        "inicio_frame": 40,
+        "fin_frame": 46
       },
       {
         "tipo": "E",
-        "inicio_frame": 47,
+        "inicio_frame": 46,
         "fin_frame": 51
       },
       {
         "tipo": "E",
         "inicio_frame": 51,
-        "fin_frame": 58
+        "fin_frame": 57
       },
       {
         "tipo": "E",
-        "inicio_frame": 58,
-        "fin_frame": 64
-      },
-      {
-        "tipo": "MBP",
-        "inicio_frame": 64,
-        "fin_frame": 66
+        "inicio_frame": 57,
+        "fin_frame": 63
       },
       {
         "tipo": "E",
-        "inicio_frame": 66,
-        "fin_frame": 72
+        "inicio_frame": 63,
+        "fin_frame": 65
+      },
+      {
+        "tipo": "A",
+        "inicio_frame": 65,
+        "fin_frame": 70
+      },
+      {
+        "tipo": "O",
+        "inicio_frame": 70,
+        "fin_frame": 76
       },
       {
         "tipo": "E",
-        "inicio_frame": 72,
+        "inicio_frame": 76,
         "fin_frame": 80
       },
       {
         "tipo": "MBP",
         "inicio_frame": 80,
-        "fin_frame": 83
+        "fin_frame": 82
       },
       {
         "tipo": "E",
-        "inicio_frame": 83,
+        "inicio_frame": 82,
         "fin_frame": 91
       },
       {
@@ -176,11 +183,16 @@
       {
         "tipo": "E",
         "inicio_frame": 104,
-        "fin_frame": 111
+        "fin_frame": 106
       },
       {
         "tipo": "E",
-        "inicio_frame": 111,
+        "inicio_frame": 106,
+        "fin_frame": 109
+      },
+      {
+        "tipo": "A",
+        "inicio_frame": 109,
         "fin_frame": 113
       },
       {

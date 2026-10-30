@@ -135,8 +135,12 @@ if __name__ == "__main__":
 
     os.makedirs(os.path.dirname(os.path.abspath(args.out)) or ".", exist_ok=True)
     with open(args.out, "w", encoding="utf-8") as f:
-        json.dump({args.linea_id: {"palabras": resultado["palabras"], "visemas": resultado["visemas"]}}, f,
-                   ensure_ascii=False, indent=2)
+        json.dump({args.linea_id: {
+            "fuente": resultado["fuente"],
+            "archivo": resultado["archivo"],
+            "palabras": resultado["palabras"],
+            "visemas": resultado["visemas"],
+        }}, f, ensure_ascii=False, indent=2)
 
     print(f"Transcripción Whisper: {resultado['_transcripcion_whisper']!r}")
     print(f"Palabras: {len(resultado['palabras'])}, visemas: {len(resultado['visemas'])}")

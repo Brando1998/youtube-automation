@@ -1,4 +1,4 @@
-import { AbsoluteFill, useVideoConfig } from "remotion";
+import { AbsoluteFill, Audio, staticFile, useVideoConfig } from "remotion";
 import { useCamera2D } from "./components/Camera2D";
 import { ParallaxLayer } from "./components/ParallaxLayer";
 import { Captions, type Palabra } from "./components/Captions";
@@ -74,6 +74,11 @@ export interface EpisodeSpec {
 }
 
 export interface AudioLinea {
+  fuente?: "polly" | "grabado";
+  /** Ruta relativa a `public/` del app Remotion (consumible con `staticFile()`) —
+   * Remotion no puede leer rutas absolutas arbitrarias del filesystem, el archivo
+   * tiene que vivir dentro de `public/` (confirmado contra la documentación oficial). */
+  archivo?: string;
   palabras: Palabra[];
   visemas: Segmento[];
 }
@@ -145,6 +150,11 @@ export function TomaIlustrada({
 
   return (
     <AbsoluteFill style={{ background: "#000" }}>
+      {toma.lineas.map((l) => {
+        const archivo = lineasAudio[l.id]?.archivo;
+        return archivo ? <Audio key={l.id} src={staticFile(archivo)} /> : null;
+      })}
+
       <ColorGrade preset={efectos.color_grade ?? "neutro"}>
         {capasVisibles?.map((capa) => (
           <ParallaxLayer key={capa.id} depth={capa.depth} camera={camera}>

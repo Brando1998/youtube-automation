@@ -139,9 +139,34 @@ estilo ilustrado. **A1, A2 y A3 ya están hechas** (sin tocar AWS):
     `fixtures/audioReal.ts`) — **renderizado localmente y verificado: la boca del
     personaje cambia de forma de verdad, sincronizada con la transcripción real**, no
     con datos inventados a mano.
-  - Pendiente (no bloqueante): agregar el audio real a la pista de sonido del video
-    renderizado (hoy solo se usa para derivar texto/tiempos, el render queda mudo) —
-    cuestión de usar `<Audio>` de Remotion, no de pipeline.
+  - **Resuelto**: el audio real ya queda en la pista de sonido del video renderizado
+    (antes solo se usaba para derivar texto/tiempos, el render quedaba mudo).
+    `EpisodeRenderer.tsx` (`TomaIlustrada`) ahora monta un `<Audio src={staticFile(archivo)}>`
+    de Remotion por cada línea del spec que tenga `lineasAudio[id].archivo`. **Hallazgo
+    importante, verificado contra la documentación oficial de Remotion antes de
+    implementar**: Remotion corre en navegador/bundler y no puede leer rutas absolutas
+    arbitrarias del filesystem — el audio tiene que vivir dentro de `public/` del app
+    Remotion y referenciarse con `staticFile()`, no con la ruta absoluta que escribe el
+    pipeline Python. Por eso:
+    - `generar_audio_local.py` y `generar_voz_polly.py` (antes calculaban `fuente`/`archivo`
+      pero los descartaban al escribir el JSON de salida, o ni los calculaban) ahora
+      escriben ambos campos, como ya exige `episode_spec/schema.json` — pero esa ruta es
+      absoluta en el filesystem de origen (correcta para el pipeline Python, no para
+      Remotion directamente).
+    - Queda como responsabilidad de un paso posterior (cuando se conecte el renderer al
+      backend/pipeline real, todavía no construido) copiar el archivo generado a
+      `apps/remotion-ilustrado/public/audio/` y reescribir `archivo` a esa ruta relativa
+      antes de invocar `remotion render` — no es automático todavía, es solo el mecanismo
+      del lado Remotion el que quedó resuelto.
+    - **Probado de punta a punta**: se regeneró audio de prueba (gTTS, gratis) para las
+      dos líneas de `ejemplo_15s.json`, se corrió `generar_audio_local.py` (Whisper+Rhubarb)
+      de verdad sobre ese audio, los mp3 resultantes se copiaron a
+      `apps/remotion-ilustrado/public/audio/l1.mp3`/`l2.mp3`, y los fixtures
+      (`l1.audio.real.json`, `l2.audio.real.json`) se actualizaron con `fuente`/`archivo`
+      y los tiempos reales de esta corrida. Render real de `PruebaAudioReal` (`remotion
+      render`) + verificado con `ffprobe`/`ffmpeg -af volumedetect`: el mp4 de 15s tiene
+      pista de audio AAC real (no silenciosa, `mean_volume -25.5dB`/`max_volume -5.6dB`),
+      sincronizada con la boca/subtítulos ya verificados antes. `tsc --noEmit` limpio.
 
 Próximo paso real: Fase A4 (personaje 2D real desde una imagen) — el script
 (`apps/pipeline_2d/generar_hoja.py`) ya está escrito y probado contra la API real,
