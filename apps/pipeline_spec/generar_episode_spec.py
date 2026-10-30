@@ -41,6 +41,11 @@ BEDROCK_REGION = "us-east-1"  # tanto amazon.* como anthropic.* viven acá, a di
 MODEL_ID_DEFAULT = "amazon.nova-lite-v1:0"  # in-region, sin inference profile — ver docstring
 ANTHROPIC_VERSION = "bedrock-2023-05-31"
 
+# Duplicado a propósito de apps/web/app/costos.py (ver nota ahí sobre por qué este
+# es un placeholder plano por intento, no un precio por token — no se pudo verificar
+# con confianza el precio por token de Nova/Claude en Bedrock en esta sesión).
+COSTO_PLACEHOLDER_TEXTO_USD = 0.05
+
 
 def cargar_schema():
     with open(SCHEMA_PATH, "r", encoding="utf-8") as f:
@@ -90,7 +95,9 @@ def _invocar_claude(client, model_id, system_prompt, messages, max_tokens):
     })
     resp = client.invoke_model(modelId=model_id, body=body)
     out = json.loads(resp["body"].read())
-    return out["content"][0]["text"]
+    uso = out.get("usage", {})
+    tokens = uso.get("input_tokens", 0) + uso.get("output_tokens", 0)
+    return out["content"][0]["text"], tokens
 
 
 def _invocar_nova(client, model_id, system_prompt, messages, max_tokens):
@@ -103,7 +110,8 @@ def _invocar_nova(client, model_id, system_prompt, messages, max_tokens):
     })
     resp = client.invoke_model(modelId=model_id, body=body)
     out = json.loads(resp["body"].read())
-    return out["output"]["message"]["content"][0]["text"]
+    tokens = out.get("usage", {}).get("totalTokens", 0)
+    return out["output"]["message"]["content"][0]["text"], tokens
 
 
 def invocar_modelo(client, model_id, system_prompt, messages, max_tokens):
@@ -136,12 +144,19 @@ def generar_episode_spec(guion_texto, episodio_id, estilo, modo_voz, personajes_
 
     messages = [{"role": "user", "content": user_prompt}]
     ultimo_error = None
+    tokens_totales = 0
     for intento in range(1, max_reintentos + 1):
-        texto = invocar_modelo(client, model_id, system_prompt, messages, max_tokens)
+        texto, tokens = invocar_modelo(client, model_id, system_prompt, messages, max_tokens)
+        tokens_totales += tokens
         try:
             spec_texto = extraer_json(texto)
             spec = json.loads(spec_texto)
             jsonschema.validate(spec, schema)
+            print("USO_REAL: " + json.dumps([{
+                "servicio": "bedrock-nova" if "nova" in model_id else "bedrock-anthropic",
+                "operacion": model_id, "cantidad": tokens_totales, "unidad": "tokens",
+                "costo_estimado_usd": round(COSTO_PLACEHOLDER_TEXTO_USD * intento, 4),
+            }]))
             return spec
         except (ValueError, json.JSONDecodeError, jsonschema.ValidationError) as e:
             ultimo_error = e

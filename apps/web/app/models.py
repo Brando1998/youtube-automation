@@ -63,6 +63,12 @@ class Episodio(Base):
     guion_texto: Mapped[str | None] = mapped_column(Text, nullable=True)
     spec_json: Mapped[dict | None] = mapped_column(JSON, nullable=True)  # episode_spec/schema.json
 
+    # Tope de gasto AWS para este episodio (null = sin límite). Cubre lo que es
+    # exclusivo de este video (episode_spec, voz_polly, render_episodio) — no la
+    # biblioteca de personajes/fondos, que se reutiliza entre episodios y no tiene
+    # episodio_id en su modelo. Ver docs/PROGRESS.md "Presupuesto por episodio".
+    presupuesto_usd: Mapped[float | None] = mapped_column(Numeric(10, 2), nullable=True)
+
     creado_por: Mapped[uuid.UUID] = mapped_column(ForeignKey("usuarios.id"))
     creado_en: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=_now)
     actualizado_en: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=_now, onupdate=_now)

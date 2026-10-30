@@ -19,9 +19,10 @@ import uuid
 from datetime import datetime, timezone
 from pathlib import Path
 
+from sqlalchemy import func
 from sqlalchemy.orm import Session
 
-from . import models
+from . import costos, models
 from .config import settings
 
 REPO_ROOT = Path(__file__).resolve().parents[3]
@@ -52,12 +53,50 @@ def _requiere(job: models.GenerationJob, campo: str):
     return valor
 
 
+def costo_acumulado_episodio(db: Session, episodio_id: uuid.UUID) -> float:
+    """Suma de UsageLog.costo_estimado_usd de todos los jobs de este episodio — lo
+    que cuenta para el presupuesto (ver models.Episodio.presupuesto_usd)."""
+    total = (
+        db.query(func.coalesce(func.sum(models.UsageLog.costo_estimado_usd), 0))
+        .join(models.GenerationJob, models.UsageLog.job_id == models.GenerationJob.id)
+        .filter(models.GenerationJob.episodio_id == episodio_id)
+        .scalar()
+    )
+    return float(total)
+
+
+def _verificar_presupuesto(db: Session, job: models.GenerationJob, params: dict):
+    """Antes de gastar de verdad: si el job es atribuible a un episodio con
+    presupuesto_usd fijado, calcula el costo estimado y bloquea si lo excedería —
+    salvo que el cliente pida explícitamente `forzar: true` (JobCreate.forzar)."""
+    if job.episodio_id is None:
+        return
+    estimado = costos.estimar_costo_job(job.tipo, params)
+    if estimado is None:
+        return
+    episodio = db.get(models.Episodio, job.episodio_id)
+    if episodio is None or episodio.presupuesto_usd is None:
+        return
+    acumulado = costo_acumulado_episodio(db, job.episodio_id)
+    restante = float(episodio.presupuesto_usd) - acumulado
+    if estimado > restante and not params.get("_forzar"):
+        raise JobError(
+            f"excedería el presupuesto del episodio: estimado ${estimado:.4f}, "
+            f"disponible ${restante:.4f} (ya gastado ${acumulado:.4f} de "
+            f"${float(episodio.presupuesto_usd):.2f}). Repetí el job con forzar=true "
+            "para gastar igual."
+        )
+
+
 def _construir_comando(db: Session, job: models.GenerationJob) -> tuple[list[str], Path, dict]:
     """Devuelve (comando, cwd_de_salida, contexto) — contexto trae lo que el callback
     post-éxito necesita (p.ej. rutas de archivos esperados) sin volver a tocar la DB."""
     params = job.parametros or {}
     simular = bool(params.get("_simular", True))
     tenant_dir = _tenant_dir(job.tenant_id)
+
+    if not simular:
+        _verificar_presupuesto(db, job, params)
 
     if job.tipo == "episode_spec":
         episodio_id = _requiere(job, "episodio_id")
@@ -183,11 +222,37 @@ def _construir_comando(db: Session, job: models.GenerationJob) -> tuple[list[str
     raise JobError(f"tipo de job desconocido: {job.tipo}")
 
 
+def _loguear_uso_real(db: Session, job: models.GenerationJob):
+    """Cada script del pipeline imprime, tras una corrida real, una línea
+    `USO_REAL: [...]` con el uso exacto (no estimado) — la parseamos para dejar
+    registro en UsageLog, base de costo_acumulado_episodio()."""
+    stdout = (job.resultado or {}).get("stdout", "")
+    for linea in stdout.splitlines():
+        if not linea.startswith("USO_REAL: "):
+            continue
+        try:
+            entradas = json.loads(linea[len("USO_REAL: "):])
+        except json.JSONDecodeError:
+            continue
+        for entrada in entradas:
+            db.add(models.UsageLog(
+                tenant_id=job.tenant_id,
+                job_id=job.id,
+                servicio=entrada["servicio"],
+                operacion=entrada["operacion"],
+                cantidad=entrada["cantidad"],
+                unidad=entrada["unidad"],
+                costo_estimado_usd=entrada["costo_estimado_usd"],
+            ))
+
+
 def _post_exito(db: Session, job: models.GenerationJob, contexto: dict, simular: bool):
     """Efectos sobre el resto del modelo de datos tras un job exitoso — solo aplica
     cuando no fue simulado (en --dry-run no se generó ningún archivo real)."""
     if simular:
         return
+
+    _loguear_uso_real(db, job)
 
     if job.tipo == "episode_spec":
         spec_path: Path = contexto["spec_path"]

@@ -17,6 +17,16 @@ async function apiPost(url, body) {
   return resp.json();
 }
 
+async function apiPatch(url, body) {
+  const resp = await fetch(url, {
+    method: 'PATCH',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(body ?? {}),
+  });
+  if (!resp.ok) throw await erroApi(resp);
+  return resp.json();
+}
+
 async function apiDelete(url) {
   const resp = await fetch(url, { method: 'DELETE' });
   if (!resp.ok && resp.status !== 204) throw await erroApi(resp);

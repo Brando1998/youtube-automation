@@ -35,6 +35,20 @@ STABILITY_REGION = "us-west-2"
 MODEL_REMOVE_BG = "us.stability.stable-image-remove-background-v1:0"
 MODEL_SEARCH_REPLACE = "us.stability.stable-image-search-replace-v1:0"
 
+# Duplicado a propósito de apps/web/app/costos.py (ver nota ahí) — remove-background
+# y search-and-replace cuestan igual, confirmado en https://aws.amazon.com/bedrock/pricing/.
+PRECIO_EDICION_USD = 0.07
+
+
+def contar_llamadas_reales(regiones):
+    """El `len(plan)` de más abajo cuenta "search_replace+remove_bg" como UNA entrada
+    del plan, pero son 2 llamadas reales a Bedrock cada una — este conteo es el que
+    de verdad importa para costo (y para loguear uso real tras una corrida)."""
+    llamadas = len(PARTES_SIMPLES) + 1 + (len(VISEMAS_NO_REPOSO) * 2)
+    if "prop" in regiones:
+        llamadas += 1
+    return llamadas
+
 VISEMAS_NO_REPOSO = ["A", "E", "O", "MBP", "FV", "L"]
 
 # Qué pedirle a Search and Replace para cada visema, a partir del recorte de la boca en
@@ -158,8 +172,10 @@ def generar_partes(personaje_id, regiones_path, out_dir, dry_run=False):
         print(f"[dry-run] hoja: {hoja_path} ({ancho_hoja}x{alto_hoja}px), aprobada: {hoja_meta['aprobado']}")
         for accion, nombre, region in plan:
             print(f"[dry-run] {nombre}: recorte {region} -> {accion}")
-        print(f"[dry-run] {len(plan)} llamadas a Bedrock se harían (0 ejecutadas). "
-              "Ninguna conexión de red fue realizada.")
+        llamadas_reales = contar_llamadas_reales(regiones)
+        print(f"[dry-run] {llamadas_reales} llamadas reales a Bedrock se harían "
+              f"({len(plan)} pasos del plan, los de boca son 2 llamadas c/u: "
+              "search_replace + remove_bg) — 0 ejecutadas. Ninguna conexión de red fue realizada.")
         return None
 
     import boto3
@@ -232,6 +248,13 @@ def generar_partes(personaje_id, regiones_path, out_dir, dry_run=False):
     puppet_path = os.path.join(personaje_dir, "puppet.json")
     with open(puppet_path, "w", encoding="utf-8") as f:
         json.dump(puppet, f, ensure_ascii=False, indent=2)
+
+    llamadas_reales = contar_llamadas_reales(regiones)
+    print("USO_REAL: " + json.dumps([{
+        "servicio": "bedrock-stability", "operacion": f"{MODEL_REMOVE_BG}+{MODEL_SEARCH_REPLACE}",
+        "cantidad": llamadas_reales, "unidad": "llamadas",
+        "costo_estimado_usd": round(llamadas_reales * PRECIO_EDICION_USD, 4),
+    }]))
 
     return puppet_path
 

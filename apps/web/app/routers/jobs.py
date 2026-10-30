@@ -43,7 +43,7 @@ def crear_job(
         episodio_id=datos.episodio_id,
         personaje_id=datos.personaje_id,
         fondo_id=datos.fondo_id,
-        parametros={**datos.parametros, "_simular": datos.simular},
+        parametros={**datos.parametros, "_simular": datos.simular, "_forzar": datos.forzar},
         creado_por=usuario.id,
     )
     db.add(job)

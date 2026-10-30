@@ -32,6 +32,12 @@ class EpisodioCreate(BaseModel):
     estilo: str = Field(pattern="^(3d|ilustrado)$")
     modo_voz: str = Field(pattern="^(narrador|dialogos|mixto)$")
     guion_texto: str | None = None
+    # Tope de gasto AWS para este episodio (null = sin límite) — ver app/costos.py.
+    presupuesto_usd: float | None = Field(default=None, ge=0)
+
+
+class EpisodioPresupuestoUpdate(BaseModel):
+    presupuesto_usd: float | None = Field(ge=0)
 
 
 class EpisodioOut(BaseModel):
@@ -43,6 +49,10 @@ class EpisodioOut(BaseModel):
     estado: str
     guion_texto: str | None
     spec_json: dict | None
+    presupuesto_usd: float | None
+    # No es una columna — se calcula en el router (suma de UsageLog de los jobs de
+    # este episodio) y se adjunta al objeto ORM antes de serializar.
+    costo_acumulado_usd: float = 0.0
     creado_en: datetime
     actualizado_en: datetime
 
@@ -93,6 +103,9 @@ class JobCreate(BaseModel):
     # (ver docs/PROGRESS.md). Un cliente tiene que pedir explícitamente lo
     # contrario para gastar de verdad.
     simular: bool = True
+    # Si el job excedería el presupuesto del episodio (app/costos.py), por defecto
+    # se bloquea con 'presupuesto_excedido' — forzar=true lo corre igual.
+    forzar: bool = False
 
 
 class JobOut(BaseModel):

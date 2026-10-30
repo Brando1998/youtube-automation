@@ -27,6 +27,9 @@
     <label>Guion (opcional, se puede completar después)
       <textarea name="guion_texto" rows="4" placeholder="NARRADOR: ...&#10;LUCIA: ..."></textarea>
     </label>
+    <label>Presupuesto en USD (opcional, vacío = sin límite)
+      <input type="number" step="0.01" min="0" name="presupuesto_usd" placeholder="p.ej. 5.00">
+    </label>
     <button type="submit">Crear episodio</button>
     <p id="error-episodio" class="error" hidden></p>
   </form>
@@ -35,7 +38,7 @@
 <div class="panel">
   <table>
     <thead>
-      <tr><th>Título</th><th>Estilo</th><th>Modo voz</th><th>Estado</th><th>Creado</th><th></th></tr>
+      <tr><th>Título</th><th>Estilo</th><th>Modo voz</th><th>Estado</th><th>Costo</th><th>Creado</th><th></th></tr>
     </thead>
     <tbody id="tabla-episodios"></tbody>
   </table>
@@ -51,11 +54,14 @@ async function cargarEpisodios() {
   document.getElementById('vacio-episodios').hidden = episodios.length > 0;
   for (const ep of episodios) {
     const tr = document.createElement('tr');
+    const presupuesto = ep.presupuesto_usd === null || ep.presupuesto_usd === undefined
+      ? '' : ` / $${ep.presupuesto_usd.toFixed(2)}`;
     tr.innerHTML = `
       <td><a href="/app/episodios/${ep.id}">${ep.titulo}</a></td>
       <td>${ep.estilo}</td>
       <td>${ep.modo_voz}</td>
       <td>${badgeEstado(ep.estado)}</td>
+      <td>$${ep.costo_acumulado_usd.toFixed(4)}${presupuesto}</td>
       <td>${formatFecha(ep.creado_en)}</td>
       <td><button class="btn-link btn-eliminar" data-episodio-id="${ep.id}" data-titulo="${ep.titulo}">Eliminar</button></td>
     `;
@@ -86,6 +92,7 @@ document.getElementById('form-episodio').addEventListener('submit', async (ev) =
       estilo: form.estilo.value,
       modo_voz: form.modo_voz.value,
       guion_texto: form.guion_texto.value || null,
+      presupuesto_usd: form.presupuesto_usd.value === '' ? null : parseFloat(form.presupuesto_usd.value),
     });
     form.reset();
     await cargarEpisodios();

@@ -30,6 +30,10 @@ MODEL_CORE = "stability.stable-image-core-v1:1"  # in-region en us-west-2, igual
 # contra la doc oficial de AWS (mismo hallazgo que en generar_partes.py).
 MODEL_REMOVE_BG = "us.stability.stable-image-remove-background-v1:0"
 
+# Duplicados a propósito de apps/web/app/costos.py (ver nota ahí).
+PRECIO_STABLE_IMAGE_CORE_USD = 0.03
+PRECIO_EDICION_USD = 0.07
+
 AISLAMIENTO_EXTRA = (
     ", isolated on a plain flat white background, no other scene elements, no horizon, no gradient sky"
 )
@@ -164,6 +168,13 @@ def generar_fondo(spec_path, out_dir, aspect_ratio="9:16", seed_base=None, dry_r
     meta_path = os.path.join(out_dir, "fondo.json")
     with open(meta_path, "w", encoding="utf-8") as f:
         json.dump(fondo_meta, f, ensure_ascii=False, indent=2)
+
+    print("USO_REAL: " + json.dumps([
+        {"servicio": "bedrock-stability", "operacion": MODEL_CORE,
+         "cantidad": len(plan), "unidad": "imagenes", "costo_estimado_usd": round(len(plan) * PRECIO_STABLE_IMAGE_CORE_USD, 4)},
+        {"servicio": "bedrock-stability", "operacion": MODEL_REMOVE_BG,
+         "cantidad": len(plan), "unidad": "llamadas", "costo_estimado_usd": round(len(plan) * PRECIO_EDICION_USD, 4)},
+    ]))
 
     return meta_path
 

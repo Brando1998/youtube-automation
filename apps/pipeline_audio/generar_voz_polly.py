@@ -54,6 +54,15 @@ POLLY_VISEMA_A_CODIGO = {
 
 PAD_FRAMES_FINAL = 5  # frames de cola para la última palabra/visema (no hay marca siguiente de la que inferir el fin)
 
+# Duplicado a propósito de apps/web/app/costos.py (ver nota ahí) — USD por carácter,
+# confirmado en https://aws.amazon.com/polly/pricing/.
+PRECIO_POR_CARACTER = {
+    "standard": 4.00 / 1_000_000,
+    "neural": 16.00 / 1_000_000,
+    "long-form": 100.00 / 1_000_000,
+    "generative": 30.00 / 1_000_000,
+}
+
 
 def frame(ms, fps):
     return round((ms / 1000.0) * fps)
@@ -174,3 +183,11 @@ if __name__ == "__main__":
     print(f"Palabras: {len(linea['palabras'])}, visemas: {len(linea['visemas'])}")
     print(f"Guardado: {args.out}")
     print(f"Audio: {args.audio_out} ({len(audio_bytes)} bytes)")
+
+    precio = PRECIO_POR_CARACTER.get(args.engine, PRECIO_POR_CARACTER["neural"])
+    # 2 llamadas a Polly (marcas + mp3), ambas sintetizan el texto completo.
+    caracteres = len(args.texto) * 2
+    print("USO_REAL: " + json.dumps([{
+        "servicio": "polly", "operacion": f"{args.engine}/{args.voz}",
+        "cantidad": caracteres, "unidad": "caracteres", "costo_estimado_usd": round(caracteres * precio, 4),
+    }]))

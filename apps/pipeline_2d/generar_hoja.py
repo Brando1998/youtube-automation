@@ -20,6 +20,12 @@ STYLE_GUIDE_PATH = os.path.join(os.path.dirname(os.path.abspath(__file__)), ".."
 STABILITY_REGION = "us-west-2"  # Stability AI en Bedrock solo existe en us-west-2 (ver docs/EC2_SETUP.md)
 MODEL_ID = "stability.stable-image-core-v1:1"
 
+# Duplicado a propósito de apps/web/app/costos.py (ver nota ahí sobre por qué no se
+# comparte entre apps/pipeline_* y apps/web) — Stable Image Core, ~verificado en una
+# sesión anterior (docs/PROGRESS.md), no re-confirmable hoy contra la página dinámica
+# de precios de Bedrock.
+PRECIO_STABLE_IMAGE_CORE_USD = 0.03
+
 
 def cargar_style_guide():
     with open(STYLE_GUIDE_PATH, "r", encoding="utf-8") as f:
@@ -104,3 +110,7 @@ if __name__ == "__main__":
         raise SystemExit(0)
     print(f"Hoja generada: {hoja_path} ({nbytes} bytes)")
     print(f"Metadatos: {meta_path}")
+    print("USO_REAL: " + json.dumps([{
+        "servicio": "bedrock-stability", "operacion": MODEL_ID,
+        "cantidad": 1, "unidad": "imagenes", "costo_estimado_usd": PRECIO_STABLE_IMAGE_CORE_USD,
+    }]))

@@ -12,6 +12,24 @@
 <p class="vacio" style="padding:0">{{ episodio.estilo }} · {{ episodio.modo_voz }} · creado {{ episodio.creado_en }}</p>
 
 <div class="panel">
+  <h2 style="margin-top:0">Presupuesto de este episodio</h2>
+  <p class="vacio" style="padding:0">
+    Cubre lo que es exclusivo de este video (guion→spec, voz, render) — no la biblioteca
+    de personajes/fondos, que se reutiliza entre episodios.
+  </p>
+  <p id="resumen-costo">Gastado: <strong id="costo-acumulado">—</strong> de <strong id="presupuesto-actual">—</strong></p>
+  <div id="barra-presupuesto-cont" style="background:#e5e5e5;border-radius:4px;height:10px;overflow:hidden;max-width:400px">
+    <div id="barra-presupuesto" style="height:100%;width:0%;background:#4a9;transition:width .3s"></div>
+  </div>
+  <form id="form-presupuesto" style="margin-top:12px">
+    <label>Nuevo tope en USD (vacío = sin límite)
+      <input type="number" step="0.01" min="0" id="input-presupuesto" placeholder="p.ej. 5.00">
+    </label>
+    <button type="submit">Actualizar presupuesto</button>
+  </form>
+</div>
+
+<div class="panel">
   <h2 style="margin-top:0">Guion</h2>
   <pre class="json-viewer" id="guion-texto">{{ episodio.guion_texto or "(sin guion todavía)" }}</pre>
 </div>
@@ -33,6 +51,10 @@
       <option value="us.anthropic.claude-sonnet-5">Claude Sonnet 5 (Anthropic, mucho más caro: $3 / $15)</option>
     </select>
   </label>
+  <label class="fila-check">
+    <input type="checkbox" id="chk-forzar-spec">
+    Forzar aunque exceda el presupuesto del episodio
+  </label>
   <button class="btn" id="btn-generar-spec">Generar episode spec</button>
   <p id="estado-job-spec" class="vacio" hidden></p>
   <pre class="json-viewer" id="spec-viewer">{{ spec_json or "(todavía no se generó)" }}</pre>
@@ -50,6 +72,10 @@
     <label class="fila-check">
       <input type="checkbox" name="simular" checked>
       Simular (no llama a Polly de verdad)
+    </label>
+    <label class="fila-check">
+      <input type="checkbox" name="forzar">
+      Forzar aunque exceda el presupuesto del episodio
     </label>
     <button type="submit">Generar voz</button>
     <p id="error-voz" class="error" hidden></p>
@@ -97,6 +123,22 @@ async function recargarEpisodio() {
   document.getElementById('spec-viewer').textContent = ep.spec_json
     ? JSON.stringify(ep.spec_json, null, 2)
     : '(todavía no se generó)';
+
+  document.getElementById('costo-acumulado').textContent = `$${ep.costo_acumulado_usd.toFixed(4)}`;
+  const presupuestoEl = document.getElementById('presupuesto-actual');
+  const barraEl = document.getElementById('barra-presupuesto');
+  if (ep.presupuesto_usd === null || ep.presupuesto_usd === undefined) {
+    presupuestoEl.textContent = 'sin límite';
+    barraEl.style.width = '0%';
+    barraEl.style.background = '#4a9';
+  } else {
+    presupuestoEl.textContent = `$${ep.presupuesto_usd.toFixed(2)}`;
+    const pct = ep.presupuesto_usd > 0 ? Math.min(100, (ep.costo_acumulado_usd / ep.presupuesto_usd) * 100) : 100;
+    barraEl.style.width = `${pct}%`;
+    barraEl.style.background = pct >= 100 ? '#c33' : pct >= 75 ? '#d90' : '#4a9';
+  }
+  document.getElementById('input-presupuesto').value = ep.presupuesto_usd ?? '';
+  return ep;
 }
 
 document.getElementById('btn-eliminar-episodio').addEventListener('click', async () => {
@@ -118,8 +160,9 @@ document.getElementById('btn-generar-spec').addEventListener('click', async () =
   estadoEl.hidden = false;
   estadoEl.textContent = 'Creando job...';
   try {
+    const forzar = document.getElementById('chk-forzar-spec').checked;
     const job = await apiPost('/jobs', {
-      tipo: 'episode_spec', episodio_id: EPISODIO_ID, simular,
+      tipo: 'episode_spec', episodio_id: EPISODIO_ID, simular, forzar,
       parametros: { modelo },
     });
     pollJob(job.id, async (j, err) => {
@@ -145,21 +188,43 @@ document.getElementById('form-voz').addEventListener('submit', async (ev) => {
   const errorEl = document.getElementById('error-voz');
   errorEl.hidden = true;
   try {
-    await apiPost('/jobs', {
+    const job = await apiPost('/jobs', {
       tipo: 'voz_polly',
       episodio_id: EPISODIO_ID,
       simular: form.simular.checked,
+      forzar: form.forzar.checked,
       parametros: { linea_id: form.linea_id.value, texto: form.texto.value },
     });
     form.reset();
     form.simular.checked = true;
     await cargarJobs();
+    pollJob(job.id, async (j, err) => {
+      if (err || !j) return;
+      if (j.estado === 'completado' || j.estado === 'fallido') {
+        await recargarEpisodio();
+        await cargarJobs();
+      }
+    });
   } catch (e) {
     errorEl.textContent = e.message;
     errorEl.hidden = false;
   }
 });
 
+document.getElementById('form-presupuesto').addEventListener('submit', async (ev) => {
+  ev.preventDefault();
+  const valor = document.getElementById('input-presupuesto').value;
+  try {
+    await apiPatch(`/episodios/${EPISODIO_ID}/presupuesto`, {
+      presupuesto_usd: valor === '' ? null : parseFloat(valor),
+    });
+    await recargarEpisodio();
+  } catch (e) {
+    alert('No se pudo actualizar el presupuesto: ' + e.message);
+  }
+});
+
+recargarEpisodio();
 cargarJobs();
 </script>
 {% endblock %}
