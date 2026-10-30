@@ -64,8 +64,14 @@ async function cargarPersonajes() {
         </form>
       </details>
       <p class="estado-job vacio" data-personaje-id="${p.id}" hidden></p>
+      <details>
+        <summary>Revisar y aprobar</summary>
+        <div class="panel-assets" data-personaje-id="${p.id}"></div>
+      </details>
     `;
     cont.appendChild(div);
+    const panelAssets = div.querySelector('.panel-assets');
+    apiGet(`/assets?personaje_id=${p.id}&pendientes=true`).then((assets) => renderPanelAssets(panelAssets, assets));
   }
 }
 

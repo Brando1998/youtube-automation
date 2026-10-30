@@ -51,8 +51,14 @@ async function cargarFondos() {
         </form>
       </details>
       <p class="estado-job vacio" data-fondo-id="${f.id}" hidden></p>
+      <details>
+        <summary>Revisar y aprobar</summary>
+        <div class="panel-assets" data-fondo-id="${f.id}"></div>
+      </details>
     `;
     cont.appendChild(div);
+    const panelAssets = div.querySelector('.panel-assets');
+    apiGet(`/assets?fondo_id=${f.id}&pendientes=true`).then((assets) => renderPanelAssets(panelAssets, assets));
   }
 }
 

@@ -1,12 +1,14 @@
 import type React from "react";
-import { useCurrentFrame } from "remotion";
+import { staticFile, useCurrentFrame } from "remotion";
 import { smooth } from "../easing";
 
 export type VisemaCode = "reposo" | "A" | "E" | "O" | "MBP" | "FV" | "L";
 
 export interface ParteVisual {
-  /** PNG con fondo transparente. Si no hay `src`, se dibuja un placeholder (forma
-   * simple de color), para poder probar la animación sin arte real (Fase A4+). */
+  /** PNG con fondo transparente, ruta relativa a `public/` del app Remotion (se
+   * resuelve con `staticFile()`, no es una URL directa — ver Placeholder más abajo).
+   * Si no hay `src`, se dibuja un placeholder (forma simple de color), para poder
+   * probar la animación sin arte real (Fase A4+). */
   src?: string;
 }
 
@@ -71,7 +73,7 @@ function visemaActivo(visemas: Segmento[] | undefined, frame: number): VisemaCod
 
 function Placeholder({ parte, fallback }: { parte?: ParteVisual; fallback: React.ReactNode }) {
   if (parte?.src) {
-    return <image href={parte.src} />;
+    return <image href={staticFile(parte.src)} />;
   }
   return <>{fallback}</>;
 }

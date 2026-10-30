@@ -158,7 +158,13 @@ export function TomaIlustrada({
       <ColorGrade preset={efectos.color_grade ?? "neutro"}>
         {capasVisibles?.map((capa) => (
           <ParallaxLayer key={capa.id} depth={capa.depth} camera={camera}>
-            {capa.render()}
+            {capa.src ? (
+              <svg viewBox={`0 0 ${W} ${H}`} width="100%" height="100%" preserveAspectRatio="xMidYMid slice">
+                <image href={staticFile(capa.src)} width={W} height={H} preserveAspectRatio="xMidYMid slice" />
+              </svg>
+            ) : (
+              capa.render?.()
+            )}
           </ParallaxLayer>
         ))}
 
@@ -180,6 +186,13 @@ export function TomaIlustrada({
                   cabezaPivot={def?.cabezaPivot}
                   propPivot={def?.propPivot}
                   apendicePivot={def?.apendicePivot}
+                  cuerpo={def?.cuerpo}
+                  cabeza={def?.cabeza}
+                  ojosAbiertos={def?.ojosAbiertos}
+                  ojosCerrados={def?.ojosCerrados}
+                  cejas={def?.cejas}
+                  bocas={def?.bocas}
+                  prop={def?.prop}
                   visemas={audio?.visemas}
                   mirarEnFrame={primerEventoFrame}
                 />

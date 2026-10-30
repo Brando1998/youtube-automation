@@ -12,6 +12,7 @@ Sin cola de tareas (Celery/RQ): cada job corre en un hilo de fondo simple
 etapa — una cola completa sería una abstracción de más por ahora.
 """
 import json
+import shutil
 import subprocess
 import sys
 import threading
@@ -29,8 +30,11 @@ REPO_ROOT = Path(__file__).resolve().parents[3]
 PIPELINE_2D = REPO_ROOT / "apps" / "pipeline_2d"
 PIPELINE_AUDIO = REPO_ROOT / "apps" / "pipeline_audio"
 PIPELINE_SPEC = REPO_ROOT / "apps" / "pipeline_spec"
+REMOTION_APP_DIR = REPO_ROOT / "apps" / "remotion-ilustrado"
+REMOTION_PUBLIC_DIR = REMOTION_APP_DIR / "public"
 
 TIMEOUT_SEGUNDOS = 600
+TIMEOUT_RENDER_SEGUNDOS = 3600  # un episodio de varios minutos puede tardar bastante más que un job de generación
 
 
 def _tenant_dir(tenant_id: uuid.UUID) -> Path:
@@ -88,6 +92,135 @@ def _verificar_presupuesto(db: Session, job: models.GenerationJob, params: dict)
         )
 
 
+def _copiar_a_public(origen: Path, subcarpeta: str, nombre_archivo: str) -> str:
+    """Copia un archivo generado al public/ del app Remotion — requisito de Remotion,
+    no puede leer rutas absolutas del filesystem (ver docs/PROGRESS.md, Fase A6) —
+    y devuelve la ruta relativa a public/ para usar con staticFile()."""
+    if not origen.exists():
+        raise JobError(f"falta el archivo esperado: {origen}")
+    destino_dir = REMOTION_PUBLIC_DIR / subcarpeta
+    destino_dir.mkdir(parents=True, exist_ok=True)
+    destino = destino_dir / nombre_archivo
+    shutil.copyfile(origen, destino)
+    return f"{subcarpeta}/{nombre_archivo}"
+
+
+def preparar_catalogo_remotion(db: Session, episodio: models.Episodio) -> dict:
+    """Arma {fondos, personajesCatalogo, lineasAudio} para pasarle a `remotion
+    render --props=...` — a partir de los Asset APROBADOS de este tenant (fondo/
+    personaje/audio), copiando las imágenes/audio reales al public/ del app
+    Remotion. Si algo que el spec referencia no tiene un asset aprobado todavía,
+    falla con un JobError claro (qué falta aprobar) en vez de renderizar a medias."""
+    tenant_dir = _tenant_dir(episodio.tenant_id)
+    spec = episodio.spec_json or {}
+
+    fondos_out: dict = {}
+    for asset_ref in {esc["fondo"] for esc in spec.get("escenas", []) if esc.get("fondo")}:
+        fondo = (
+            db.query(models.Fondo)
+            .filter(models.Fondo.tenant_id == episodio.tenant_id, models.Fondo.asset_ref == asset_ref)
+            .first()
+        )
+        if fondo is None:
+            raise JobError(f"el spec referencia el fondo '{asset_ref}' pero no existe ese Fondo")
+        asset = (
+            db.query(models.Asset)
+            .filter(models.Asset.fondo_id == fondo.id, models.Asset.tipo == "capa_fondo", models.Asset.aprobado.is_(True))
+            .order_by(models.Asset.creado_en.desc())
+            .first()
+        )
+        if asset is None:
+            raise JobError(f"el fondo '{asset_ref}' todavía no tiene una capa_fondo aprobada")
+        fondo_json = asset.metadatos or {}
+        fondo_dir = (tenant_dir / asset.ruta_archivo).parent
+        capas = [
+            {
+                "id": capa["id"],
+                "depth": capa["depth"],
+                "src": _copiar_a_public(fondo_dir / capa["archivo"], f"assets/fondos/{fondo.id}", f"{capa['id']}.png"),
+            }
+            for capa in fondo_json.get("capas", [])
+        ]
+        fondos_out[asset_ref] = {
+            "id": asset_ref, "capas": capas,
+            "luces": fondo_json.get("luces") or None,
+            "humoOrigen": fondo_json.get("humo_origen") or None,
+        }
+
+    personajes_out: dict = {}
+    for p in spec.get("personajes", []):
+        asset_ref = p.get("asset_ref")
+        if not asset_ref:
+            continue
+        personaje = (
+            db.query(models.Personaje)
+            .filter(models.Personaje.tenant_id == episodio.tenant_id, models.Personaje.asset_ref == asset_ref)
+            .first()
+        )
+        if personaje is None:
+            raise JobError(f"el spec referencia el personaje '{asset_ref}' pero no existe ese Personaje")
+        asset = (
+            db.query(models.Asset)
+            .filter(models.Asset.personaje_id == personaje.id, models.Asset.tipo == "parte_personaje", models.Asset.aprobado.is_(True))
+            .order_by(models.Asset.creado_en.desc())
+            .first()
+        )
+        if asset is None:
+            raise JobError(f"el personaje '{asset_ref}' todavía no tiene partes aprobadas")
+        puppet = asset.metadatos or {}
+        partes = puppet.get("partes", {})
+        personaje_dir = (tenant_dir / asset.ruta_archivo).parent
+        subcarpeta = f"assets/personajes/{personaje.id}"
+
+        def _parte(relpath: str) -> dict:
+            return {"src": _copiar_a_public(personaje_dir / relpath, subcarpeta, Path(relpath).name)}
+
+        pivotes = puppet.get("pivotes", {})
+        personajes_out[asset_ref] = {
+            "id": asset_ref,
+            "cabezaPivot": pivotes.get("cabeza"),
+            "propPivot": pivotes.get("prop"),
+            "apendicePivot": pivotes.get("apendice"),
+            "cuerpo": _parte(partes["cuerpo"]),
+            "cabeza": _parte(partes["cabeza"]),
+            "ojosAbiertos": _parte(partes["ojos_abiertos"]),
+            "ojosCerrados": _parte(partes["ojos_cerrados"]),
+            "cejas": _parte(partes["cejas"]),
+            "bocas": {codigo: _parte(rel) for codigo, rel in partes.get("bocas", {}).items()},
+            **({"prop": _parte(partes["prop"])} if "prop" in partes else {}),
+        }
+
+    ids_linea = {
+        l["id"] for esc in spec.get("escenas", []) for t in esc.get("tomas", []) for l in t.get("lineas", [])
+    }
+    audios_aprobados = (
+        db.query(models.Asset)
+        .filter(models.Asset.episodio_id == episodio.id, models.Asset.tipo == "audio", models.Asset.aprobado.is_(True))
+        .order_by(models.Asset.creado_en.desc())
+        .all()
+    )
+    audio_por_linea = {}
+    for a in audios_aprobados:
+        lid = (a.metadatos or {}).get("linea_id")
+        if lid and lid not in audio_por_linea:  # ya vienen desc por creado_en, nos quedamos con el más nuevo
+            audio_por_linea[lid] = a
+
+    lineas_audio_out: dict = {}
+    for linea_id in ids_linea:
+        asset = audio_por_linea.get(linea_id)
+        if asset is None:
+            raise JobError(f"la línea '{linea_id}' todavía no tiene audio aprobado")
+        meta = dict(asset.metadatos or {})
+        meta.pop("linea_id", None)
+        meta.pop("archivo", None)
+        archivo_fuente = tenant_dir / asset.ruta_archivo
+        ext = archivo_fuente.suffix or ".mp3"
+        meta["archivo"] = _copiar_a_public(archivo_fuente, "assets/audio", f"{linea_id}{ext}")
+        lineas_audio_out[linea_id] = meta
+
+    return {"fondos": fondos_out, "personajesCatalogo": personajes_out, "lineasAudio": lineas_audio_out}
+
+
 def _construir_comando(db: Session, job: models.GenerationJob) -> tuple[list[str], Path, dict]:
     """Devuelve (comando, cwd_de_salida, contexto) — contexto trae lo que el callback
     post-éxito necesita (p.ej. rutas de archivos esperados) sin volver a tocar la DB."""
@@ -124,7 +257,7 @@ def _construir_comando(db: Session, job: models.GenerationJob) -> tuple[list[str
             cmd += ["--max-tokens", str(params["max_tokens"])]
         if simular:
             cmd.append("--dry-run")
-        return cmd, out_dir, {"spec_path": spec_path, "episodio_id": episodio_id}
+        return cmd, None, {"spec_path": spec_path, "episodio_id": episodio_id}
 
     if job.tipo == "hoja_personaje":
         personaje_id = _requiere(job, "personaje_id")
@@ -135,6 +268,7 @@ def _construir_comando(db: Session, job: models.GenerationJob) -> tuple[list[str
         if not sujeto:
             raise JobError("parametros.sujeto es requerido para hoja_personaje")
         out_dir = tenant_dir / "personajes" / str(personaje_id)
+        out_dir.mkdir(parents=True, exist_ok=True)
         cmd = [
             sys.executable, str(PIPELINE_2D / "generar_hoja.py"),
             "--id", personaje.nombre,
@@ -147,7 +281,7 @@ def _construir_comando(db: Session, job: models.GenerationJob) -> tuple[list[str
             cmd += ["--seed", str(params["seed"])]
         if simular:
             cmd.append("--dry-run")
-        return cmd, out_dir, {"personaje_id": personaje_id}
+        return cmd, None, {"personaje_id": personaje_id}
 
     if job.tipo == "partes_personaje":
         personaje_id = _requiere(job, "personaje_id")
@@ -169,7 +303,7 @@ def _construir_comando(db: Session, job: models.GenerationJob) -> tuple[list[str
         ]
         if simular:
             cmd.append("--dry-run")
-        return cmd, out_dir, {"personaje_id": personaje_id}
+        return cmd, None, {"personaje_id": personaje_id}
 
     if job.tipo == "fondo":
         fondo_id = _requiere(job, "fondo_id")
@@ -192,7 +326,7 @@ def _construir_comando(db: Session, job: models.GenerationJob) -> tuple[list[str
             cmd += ["--aspect-ratio", params["aspect_ratio"]]
         if simular:
             cmd.append("--dry-run")
-        return cmd, out_dir, {"fondo_id": fondo_id}
+        return cmd, None, {"fondo_id": fondo_id}
 
     if job.tipo == "voz_polly":
         episodio_id = _requiere(job, "episodio_id")
@@ -217,7 +351,35 @@ def _construir_comando(db: Session, job: models.GenerationJob) -> tuple[list[str
                 cmd += [flag, str(params[campo])]
         if simular:
             cmd.append("--dry-run")
-        return cmd, out_dir, {"episodio_id": episodio_id, "linea_id": linea_id, "json_path": json_path, "mp3_path": mp3_path}
+        return cmd, None, {"episodio_id": episodio_id, "linea_id": linea_id, "json_path": json_path, "mp3_path": mp3_path}
+
+    if job.tipo == "render_episodio":
+        episodio_id = _requiere(job, "episodio_id")
+        episodio = db.get(models.Episodio, episodio_id)
+        if episodio is None:
+            raise JobError("episodio no encontrado")
+        if not episodio.spec_json:
+            raise JobError("el episodio no tiene episode_spec todavía (correr el job 'episode_spec' primero)")
+
+        catalogo = preparar_catalogo_remotion(db, episodio)  # falla con JobError si falta algo por aprobar
+        out_dir = tenant_dir / "episodios" / str(episodio_id)
+        out_dir.mkdir(parents=True, exist_ok=True)
+        props_path = out_dir / "render_props.json"
+        props_path.write_text(json.dumps({"spec": episodio.spec_json, **catalogo}, ensure_ascii=False), encoding="utf-8")
+        mp4_path = out_dir / "episodio.mp4"
+        # El subproceso corre con cwd=REMOTION_APP_DIR (lo necesita `npx remotion`
+        # para encontrar src/index.ts y node_modules) — los argumentos tienen que
+        # ser absolutos, si no se resolverían relativos a REMOTION_APP_DIR y no a
+        # tenant_dir. `.resolve()` se llama ahora, con el cwd real del proceso
+        # backend, antes de que el subprocess cambie nada.
+        cmd = [
+            "npx", "remotion", "render", "src/index.ts", "Episodio", str(mp4_path.resolve()),
+            f"--props={props_path.resolve()}",
+        ]
+        # render_episodio no gasta AWS (todo lo real ya se generó y aprobó antes) —
+        # no tiene --dry-run propio ni pasa por _verificar_presupuesto (costos.
+        # estimar_costo_job devuelve None para este tipo).
+        return cmd, REMOTION_APP_DIR, {"episodio_id": episodio_id, "mp4_path": mp4_path}
 
     raise JobError(f"tipo de job desconocido: {job.tipo}")
 
@@ -295,20 +457,37 @@ def _post_exito(db: Session, job: models.GenerationJob, contexto: dict, simular:
                 tipo="capa_fondo",
                 ruta_archivo=str(fondo_json.relative_to(_tenant_dir(job.tenant_id))),
                 fondo_id=fondo_id,
+                metadatos=json.loads(fondo_json.read_text(encoding="utf-8")),
                 aprobado=False,
             ))
 
     elif job.tipo == "voz_polly":
         mp3_path: Path = contexto["mp3_path"]
-        if mp3_path.exists():
+        json_path: Path = contexto["json_path"]
+        if mp3_path.exists() and json_path.exists():
+            audio_linea = json.loads(json_path.read_text(encoding="utf-8"))[contexto["linea_id"]]
             db.add(models.Asset(
                 tenant_id=job.tenant_id,
                 tipo="audio",
                 ruta_archivo=str(mp3_path.relative_to(_tenant_dir(job.tenant_id))),
                 episodio_id=contexto["episodio_id"],
-                metadatos={"linea_id": contexto["linea_id"]},
+                metadatos={"linea_id": contexto["linea_id"], **audio_linea},
                 aprobado=False,
             ))
+
+    elif job.tipo == "render_episodio":
+        mp4_path: Path = contexto["mp4_path"]
+        if mp4_path.exists():
+            episodio_id = contexto["episodio_id"]
+            db.add(models.Asset(
+                tenant_id=job.tenant_id,
+                tipo="render",
+                ruta_archivo=str(mp4_path.relative_to(_tenant_dir(job.tenant_id))),
+                episodio_id=episodio_id,
+                aprobado=False,
+            ))
+            episodio = db.get(models.Episodio, episodio_id)
+            episodio.estado = "listo"
 
 
 def _ejecutar(db: Session, job: models.GenerationJob):
@@ -317,10 +496,13 @@ def _ejecutar(db: Session, job: models.GenerationJob):
     db.commit()
 
     params = job.parametros or {}
-    simular = bool(params.get("_simular", True))
+    # render_episodio no tiene modo --dry-run (no existe "simular" un render local,
+    # no gasta AWS) — siempre se trata como real para que _post_exito() sí registre
+    # el Asset del mp4 resultante.
+    simular = bool(params.get("_simular", True)) and job.tipo != "render_episodio"
 
     try:
-        cmd, _cwd, contexto = _construir_comando(db, job)
+        cmd, cwd, contexto = _construir_comando(db, job)
     except JobError as e:
         job.estado = "fallido"
         job.error = str(e)
@@ -328,11 +510,12 @@ def _ejecutar(db: Session, job: models.GenerationJob):
         db.commit()
         return
 
+    timeout = TIMEOUT_RENDER_SEGUNDOS if job.tipo == "render_episodio" else TIMEOUT_SEGUNDOS
     try:
-        proc = subprocess.run(cmd, capture_output=True, text=True, timeout=TIMEOUT_SEGUNDOS)
+        proc = subprocess.run(cmd, capture_output=True, text=True, timeout=timeout, cwd=cwd)
     except subprocess.TimeoutExpired:
         job.estado = "fallido"
-        job.error = f"timeout tras {TIMEOUT_SEGUNDOS}s"
+        job.error = f"timeout tras {timeout}s"
         job.terminado_en = _now()
         db.commit()
         return

@@ -1,14 +1,18 @@
 import type React from "react";
 import type { LuzDef } from "../components/FlickerLight";
-import type { Pivote } from "../components/CharacterPuppet";
+import type { ParteVisual, Pivote, Segmento, VisemaCode } from "../components/CharacterPuppet";
 
-/** Una capa de un fondo (cielo/lejano/medio/suelo/primer_plano) — hoy renderiza un
- * placeholder SVG; en producción (Fase A5) `render` devolverá un <image> con el PNG
- * generado, misma interfaz, sin tocar el resto del renderer. */
+/** Una capa de un fondo (cielo/lejano/medio/suelo/primer_plano). Dos formas posibles:
+ * `render()` (closure, usado por los catálogos mock de desarrollo/Prueba*, no
+ * serializable) o `src` (ruta relativa a public/, usado por el catálogo real
+ * sincronizado desde los Asset aprobados — Fase A5/render_episodio, serializable
+ * vía --props de `remotion render`). TomaIlustrada usa `src` si está, si no cae a
+ * `render()`. */
 export interface CapaFondo {
   id: string;
   depth: number;
-  render: () => React.ReactNode;
+  render?: () => React.ReactNode;
+  src?: string;
 }
 
 /** Definición de un fondo del catálogo (assets/2d/fondos/<id>/fondo.json en
@@ -21,12 +25,29 @@ export interface FondoDef {
 }
 
 /** Definición de un personaje del catálogo (assets/2d/personajes/<id>/puppet.json en
- * producción) — por ahora solo pivotes + color placeholder; las partes reales
- * (src de cada PNG) se agregan sin cambiar esta forma cuando exista el arte (Fase A4). */
+ * producción). Los mocks de desarrollo solo traen colorPlaceholder/pivotes (sin
+ * partes reales, CharacterPuppet cae a placeholders); el catálogo real sincronizado
+ * desde los Asset aprobados agrega cuerpo/cabeza/.../bocas/prop con `src` real. */
 export interface PersonajeDef {
   id: string;
-  colorPlaceholder: string;
+  colorPlaceholder?: string;
   cabezaPivot?: Pivote;
   propPivot?: Pivote;
   apendicePivot?: Pivote;
+  cuerpo?: ParteVisual;
+  cabeza?: ParteVisual;
+  ojosAbiertos?: ParteVisual;
+  ojosCerrados?: ParteVisual;
+  cejas?: ParteVisual;
+  bocas?: Partial<Record<VisemaCode, ParteVisual>>;
+  prop?: ParteVisual;
+}
+
+/** Catálogo real completo, tal como lo escribe
+ * apps/web/app/pipeline_runner.py::preparar_catalogo_remotion() antes de invocar
+ * `remotion render` — ver EpisodioCompleto.tsx. */
+export interface CatalogoReal {
+  fondos: Record<string, FondoDef>;
+  personajes: Record<string, PersonajeDef>;
+  lineasAudio: Record<string, { palabras: unknown[]; visemas: Segmento[]; archivo?: string; fuente?: string }>;
 }

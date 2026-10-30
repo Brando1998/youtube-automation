@@ -77,6 +77,65 @@ function pollJob(jobId, onUpdate, intervalMs = 2000) {
   return () => { activo = false; };
 }
 
+// --- Revisión/aprobación de assets (hoja/partes/fondo/audio/render) — mismo panel
+// reutilizado en personajes, fondos y el detalle de episodio.
+
+function _nombresDeAsset(asset) {
+  if (asset.tipo === 'parte_personaje') {
+    const partes = asset.metadatos?.partes || {};
+    const simples = Object.keys(partes).filter((k) => k !== 'bocas');
+    const bocas = Object.keys(partes.bocas || {});
+    return [...simples, ...bocas];
+  }
+  if (asset.tipo === 'capa_fondo') {
+    return (asset.metadatos?.capas || []).map((c) => c.id);
+  }
+  return [null]; // hoja_personaje, audio, render: un solo archivo, sin ?nombre=
+}
+
+function _previewAsset(asset, nombre) {
+  const url = `/assets/${asset.id}/archivo${nombre ? `?nombre=${encodeURIComponent(nombre)}` : ''}`;
+  if (asset.tipo === 'render') return `<video src="${url}" controls style="max-width:220px;display:inline-block;margin:4px"></video>`;
+  if (asset.tipo === 'audio') return `<audio src="${url}" controls style="display:inline-block;margin:4px"></audio>`;
+  return `<img src="${url}" alt="${nombre || ''}" title="${nombre || ''}" style="max-width:110px;max-height:110px;display:inline-block;margin:4px;background:repeating-conic-gradient(#8884 0% 25%,transparent 0% 50%) 0/16px 16px">`;
+}
+
+// Pinta `assets` (resultado de GET /assets?...&pendientes=true) dentro de `contenedorEl`,
+// con preview + botón Aprobar por cada uno. Al aprobar, el panel de ese asset desaparece.
+function renderPanelAssets(contenedorEl, assets) {
+  contenedorEl.innerHTML = '';
+  if (assets.length === 0) {
+    contenedorEl.innerHTML = '<p class="vacio">Nada pendiente de revisión.</p>';
+    return;
+  }
+  for (const asset of assets) {
+    const div = document.createElement('div');
+    div.className = 'panel';
+    const previews = _nombresDeAsset(asset).map((n) => _previewAsset(asset, n)).join('');
+    div.innerHTML = `
+      <div class="flex-entre"><strong>${asset.tipo}</strong><span class="vacio">${formatFecha(asset.creado_en)}</span></div>
+      <div>${previews}</div>
+      <button class="btn btn-aprobar-asset" data-asset-id="${asset.id}">Aprobar</button>
+    `;
+    contenedorEl.appendChild(div);
+  }
+  contenedorEl.querySelectorAll('.btn-aprobar-asset').forEach((btn) => {
+    btn.addEventListener('click', async () => {
+      btn.disabled = true;
+      try {
+        await apiPatch(`/assets/${btn.dataset.assetId}/aprobar`, {});
+        btn.closest('.panel').remove();
+        if (!contenedorEl.querySelector('.panel')) {
+          contenedorEl.innerHTML = '<p class="vacio">Nada pendiente de revisión.</p>';
+        }
+      } catch (e) {
+        alert('No se pudo aprobar: ' + e.message);
+        btn.disabled = false;
+      }
+    });
+  });
+}
+
 document.addEventListener('DOMContentLoaded', () => {
   const btnLogout = document.getElementById('btn-logout');
   if (btnLogout) {

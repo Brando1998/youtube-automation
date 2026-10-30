@@ -94,7 +94,7 @@ class FondoOut(BaseModel):
 
 
 class JobCreate(BaseModel):
-    tipo: str = Field(pattern="^(episode_spec|hoja_personaje|partes_personaje|fondo|voz_polly)$")
+    tipo: str = Field(pattern="^(episode_spec|hoja_personaje|partes_personaje|fondo|voz_polly|render_episodio)$")
     episodio_id: uuid.UUID | None = None
     personaje_id: uuid.UUID | None = None
     fondo_id: uuid.UUID | None = None
@@ -106,6 +106,21 @@ class JobCreate(BaseModel):
     # Si el job excedería el presupuesto del episodio (app/costos.py), por defecto
     # se bloquea con 'presupuesto_excedido' — forzar=true lo corre igual.
     forzar: bool = False
+
+
+class AssetOut(BaseModel):
+    id: uuid.UUID
+    tenant_id: uuid.UUID
+    tipo: str
+    ruta_archivo: str
+    personaje_id: uuid.UUID | None
+    fondo_id: uuid.UUID | None
+    episodio_id: uuid.UUID | None
+    metadatos: dict | None
+    aprobado: bool
+    creado_en: datetime
+
+    model_config = {"from_attributes": True}
 
 
 class JobOut(BaseModel):

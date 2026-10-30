@@ -83,6 +83,28 @@
 </div>
 
 <div class="panel">
+  <h2 style="margin-top:0">Revisar y aprobar (audio, render)</h2>
+  <p class="vacio" style="padding:0">
+    Los personajes y fondos se revisan y aprueban desde sus propias páginas
+    (<a href="/app/personajes">Personajes</a>, <a href="/app/fondos">Fondos</a>) — acá
+    solo lo que es exclusivo de este episodio.
+  </p>
+  <div id="panel-assets-episodio"></div>
+</div>
+
+<div class="panel">
+  <h2 style="margin-top:0">Renderizar episodio completo</h2>
+  <p class="vacio" style="padding:0">
+    Encadena todas las tomas del spec en un solo mp4 (Remotion, 100% local — no gasta
+    AWS). Requiere que todos los fondos/personajes que usa el spec ya tengan assets
+    aprobados, y que cada línea tenga su audio aprobado.
+  </p>
+  <button class="btn" id="btn-renderizar">Renderizar episodio completo</button>
+  <p id="estado-job-render" class="vacio" hidden></p>
+  <p id="link-descarga" hidden></p>
+</div>
+
+<div class="panel">
   <h2 style="margin-top:0">Jobs de este episodio</h2>
   <table>
     <thead><tr><th>Tipo</th><th>Estado</th><th>Creado</th><th>Error</th></tr></thead>
@@ -211,6 +233,46 @@ document.getElementById('form-voz').addEventListener('submit', async (ev) => {
   }
 });
 
+async function cargarAssetsEpisodio() {
+  const assets = await apiGet(`/assets?episodio_id=${EPISODIO_ID}&pendientes=true`);
+  renderPanelAssets(document.getElementById('panel-assets-episodio'), assets);
+}
+
+async function mostrarDescargaSiExiste() {
+  const assets = await apiGet(`/assets?episodio_id=${EPISODIO_ID}&tipo=render`);
+  const linkEl = document.getElementById('link-descarga');
+  if (assets.length === 0) { linkEl.hidden = true; return; }
+  const ultimo = assets[0]; // ya vienen ordenados por creado_en desc
+  linkEl.innerHTML = `<a class="btn" href="/assets/${ultimo.id}/archivo" download="episodio.mp4">Descargar video (${formatFecha(ultimo.creado_en)})</a>`;
+  linkEl.hidden = false;
+}
+
+document.getElementById('btn-renderizar').addEventListener('click', async () => {
+  const btn = document.getElementById('btn-renderizar');
+  const estadoEl = document.getElementById('estado-job-render');
+  btn.disabled = true;
+  estadoEl.hidden = false;
+  estadoEl.textContent = 'Creando job de render...';
+  try {
+    const job = await apiPost('/jobs', { tipo: 'render_episodio', episodio_id: EPISODIO_ID });
+    pollJob(job.id, async (j, err) => {
+      if (err) { estadoEl.textContent = 'Error consultando el job: ' + err.message; btn.disabled = false; return; }
+      estadoEl.innerHTML = 'Job: ' + badgeEstado(j.estado);
+      if (j.estado === 'completado' || j.estado === 'fallido') {
+        btn.disabled = false;
+        if (j.error) estadoEl.innerHTML += ' — ' + j.error;
+        await mostrarDescargaSiExiste();
+        await cargarAssetsEpisodio();
+        await cargarJobs();
+      }
+    }, 4000);
+  } catch (e) {
+    estadoEl.textContent = e.message;
+    btn.disabled = false;
+  }
+  await cargarJobs();
+});
+
 document.getElementById('form-presupuesto').addEventListener('submit', async (ev) => {
   ev.preventDefault();
   const valor = document.getElementById('input-presupuesto').value;
@@ -226,5 +288,7 @@ document.getElementById('form-presupuesto').addEventListener('submit', async (ev
 
 recargarEpisodio();
 cargarJobs();
+cargarAssetsEpisodio();
+mostrarDescargaSiExiste();
 </script>
 {% endblock %}
