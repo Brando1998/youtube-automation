@@ -94,4 +94,8 @@ def estimar_costo_job(tipo: str, params: dict) -> float | None:
         return estimar_voz_polly(params.get("texto") or "", params.get("engine") or "neural")
     if tipo == "episode_spec":
         return estimar_episode_spec(int(params.get("max_reintentos", 3)))
+    # render_episodio y vector_personaje/vector_fondo/vector_objeto caen acá a
+    # propósito: todos corren 100% local (Remotion), sin tocar AWS — la biblioteca
+    # de personajes/fondos/objetos pasó a dibujarse por código, no se genera más
+    # con Stability (ver docs/PROGRESS.md).
     return None

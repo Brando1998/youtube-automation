@@ -105,14 +105,49 @@ def _copiar_a_public(origen: Path, subcarpeta: str, nombre_archivo: str) -> str:
     return f"{subcarpeta}/{nombre_archivo}"
 
 
+def _regenerar_registry():
+    """Corre generar_registry.mjs — para que preparar_catalogo_remotion nunca confíe
+    en un registry desactualizado si alguien editó un .tsx de la biblioteca sin
+    correr el script a mano. El script en sí ya valida que cada archivo de library/
+    tenga exactamente un ASSET_REF + una definición (si no, falla con su propio
+    error, que acá se propaga como JobError)."""
+    try:
+        subprocess.run(
+            ["node", "scripts/generar_registry.mjs"],
+            cwd=REMOTION_APP_DIR, check=True, capture_output=True, text=True, timeout=60,
+        )
+    except subprocess.CalledProcessError as e:
+        raise JobError(f"generar_registry.mjs falló: {(e.stderr or e.stdout or '').strip()}")
+
+
+def _verificar_asset_ref(archivo: str, asset_ref: str):
+    """Confirma que el .tsx declara el ASSET_REF esperado — directo contra el
+    archivo fuente, no contra registry.ts (ahí solo queda un import por alias, el
+    valor del string nunca aparece como texto literal en ese archivo generado)."""
+    ruta = REMOTION_APP_DIR / archivo
+    if not ruta.exists():
+        raise JobError(f"no existe {archivo} (ruta esperada: {ruta})")
+    texto = ruta.read_text(encoding="utf-8")
+    if f'ASSET_REF = "{asset_ref}"' not in texto:
+        raise JobError(
+            f"{archivo} no exporta ASSET_REF = \"{asset_ref}\" — revisá que coincida "
+            "exacto con el asset_ref de la entidad en la DB"
+        )
+
+
 def preparar_catalogo_remotion(db: Session, episodio: models.Episodio) -> dict:
     """Arma {fondos, personajesCatalogo, lineasAudio} para pasarle a `remotion
     render --props=...` — a partir de los Asset APROBADOS de este tenant (fondo/
-    personaje/audio), copiando las imágenes/audio reales al public/ del app
-    Remotion. Si algo que el spec referencia no tiene un asset aprobado todavía,
-    falla con un JobError claro (qué falta aprobar) en vez de renderizar a medias."""
+    personaje/audio). Los assets raster (capa_fondo/parte_personaje, camino viejo
+    Stability) copian sus imágenes al public/ del app Remotion; los vectoriales
+    (vector_fondo/vector_personaje, biblioteca de código) no viajan por acá en
+    absoluto — EpisodeRenderer los resuelve solo contra library/registry.ts, así
+    que acá solo se confirma que están ahí. Si algo que el spec referencia no
+    tiene un asset aprobado todavía, falla con un JobError claro (qué falta
+    aprobar) en vez de renderizar a medias."""
     tenant_dir = _tenant_dir(episodio.tenant_id)
     spec = episodio.spec_json or {}
+    _regenerar_registry()
 
     fondos_out: dict = {}
     for asset_ref in {esc["fondo"] for esc in spec.get("escenas", []) if esc.get("fondo")}:
@@ -125,12 +160,21 @@ def preparar_catalogo_remotion(db: Session, episodio: models.Episodio) -> dict:
             raise JobError(f"el spec referencia el fondo '{asset_ref}' pero no existe ese Fondo")
         asset = (
             db.query(models.Asset)
-            .filter(models.Asset.fondo_id == fondo.id, models.Asset.tipo == "capa_fondo", models.Asset.aprobado.is_(True))
+            .filter(
+                models.Asset.fondo_id == fondo.id,
+                models.Asset.tipo.in_(("capa_fondo", "vector_fondo")),
+                models.Asset.aprobado.is_(True),
+            )
             .order_by(models.Asset.creado_en.desc())
             .first()
         )
         if asset is None:
             raise JobError(f"el fondo '{asset_ref}' todavía no tiene una capa_fondo aprobada")
+
+        if asset.tipo == "vector_fondo":
+            _verificar_asset_ref((asset.metadatos or {}).get("archivo", ""), asset_ref)
+            continue  # lo resuelve FONDOS_VECTOR del lado de Remotion, no viaja por --props
+
         fondo_json = asset.metadatos or {}
         fondo_dir = (tenant_dir / asset.ruta_archivo).parent
         capas = [
@@ -161,12 +205,21 @@ def preparar_catalogo_remotion(db: Session, episodio: models.Episodio) -> dict:
             raise JobError(f"el spec referencia el personaje '{asset_ref}' pero no existe ese Personaje")
         asset = (
             db.query(models.Asset)
-            .filter(models.Asset.personaje_id == personaje.id, models.Asset.tipo == "parte_personaje", models.Asset.aprobado.is_(True))
+            .filter(
+                models.Asset.personaje_id == personaje.id,
+                models.Asset.tipo.in_(("parte_personaje", "vector_personaje")),
+                models.Asset.aprobado.is_(True),
+            )
             .order_by(models.Asset.creado_en.desc())
             .first()
         )
         if asset is None:
             raise JobError(f"el personaje '{asset_ref}' todavía no tiene partes aprobadas")
+
+        if asset.tipo == "vector_personaje":
+            _verificar_asset_ref((asset.metadatos or {}).get("archivo", ""), asset_ref)
+            continue  # lo resuelve PERSONAJES_VECTOR del lado de Remotion, no viaja por --props
+
         puppet = asset.metadatos or {}
         partes = puppet.get("partes", {})
         personaje_dir = (tenant_dir / asset.ruta_archivo).parent
@@ -219,6 +272,26 @@ def preparar_catalogo_remotion(db: Session, episodio: models.Episodio) -> dict:
         lineas_audio_out[linea_id] = meta
 
     return {"fondos": fondos_out, "personajesCatalogo": personajes_out, "lineasAudio": lineas_audio_out}
+
+
+def _comando_vector(tenant_dir: Path, entidad, composicion: str, out_subcarpeta: str, archivo: str, asset_ref: str) -> tuple[list[str], Path]:
+    """Común a vector_personaje/vector_fondo/vector_objeto: regenera
+    library/registry.ts (nunca confiar en que ya estaba al día), confirma que el
+    asset_ref del .tsx quedó adentro, y arma el `remotion still` que genera el
+    preview sobre el que se va a aprobar/rechazar — sin ninguna llamada a AWS."""
+    _regenerar_registry()
+    _verificar_asset_ref(archivo, asset_ref)
+
+    out_dir = tenant_dir / out_subcarpeta / str(entidad.id)
+    out_dir.mkdir(parents=True, exist_ok=True)
+    props_path = out_dir / "preview_props.json"
+    props_path.write_text(json.dumps({"asset_ref": asset_ref}, ensure_ascii=False), encoding="utf-8")
+    png_path = out_dir / "preview.png"
+    cmd = [
+        "npx", "remotion", "still", "src/index.ts", composicion, str(png_path.resolve()),
+        f"--props={props_path.resolve()}",
+    ]
+    return cmd, png_path
 
 
 def _construir_comando(db: Session, job: models.GenerationJob) -> tuple[list[str], Path, dict]:
@@ -352,6 +425,23 @@ def _construir_comando(db: Session, job: models.GenerationJob) -> tuple[list[str
         if simular:
             cmd.append("--dry-run")
         return cmd, None, {"episodio_id": episodio_id, "linea_id": linea_id, "json_path": json_path, "mp3_path": mp3_path}
+
+    if job.tipo in ("vector_personaje", "vector_fondo", "vector_objeto"):
+        config = {
+            "vector_personaje": ("personaje_id", models.Personaje, "personaje", "personajes", "PreviewPersonaje"),
+            "vector_fondo": ("fondo_id", models.Fondo, "fondo", "fondos", "PreviewFondo"),
+            "vector_objeto": ("objeto_id", models.Objeto, "objeto", "objetos", "PreviewObjeto"),
+        }[job.tipo]
+        campo_id, Modelo, nombre_campo, subcarpeta, composicion = config
+        entidad_id = _requiere(job, campo_id)
+        entidad = db.get(Modelo, entidad_id)
+        if entidad is None:
+            raise JobError(f"{nombre_campo} no encontrado")
+        archivo = params.get("archivo")  # ruta al .tsx, relativa a REMOTION_APP_DIR
+        if not archivo:
+            raise JobError(f"parametros.archivo (ruta al .tsx en library/) es requerido para {job.tipo}")
+        cmd, png_path = _comando_vector(tenant_dir, entidad, composicion, subcarpeta, archivo, entidad.asset_ref)
+        return cmd, REMOTION_APP_DIR, {campo_id: entidad_id, "png_path": png_path, "archivo": archivo}
 
     if job.tipo == "render_episodio":
         episodio_id = _requiere(job, "episodio_id")
@@ -489,6 +579,24 @@ def _post_exito(db: Session, job: models.GenerationJob, contexto: dict, simular:
             episodio = db.get(models.Episodio, episodio_id)
             episodio.estado = "listo"
 
+    elif job.tipo in ("vector_personaje", "vector_fondo", "vector_objeto"):
+        png_path: Path = contexto["png_path"]
+        if png_path.exists():
+            archivo: str = contexto["archivo"]
+            ruta_tsx_abs = (REMOTION_APP_DIR / archivo).resolve()
+            db.add(models.Asset(
+                tenant_id=job.tenant_id,
+                tipo=job.tipo,
+                # Repo-relative, NO relativa a tenant_dir — es código versionado,
+                # compartido entre tenants (ver nota en models.Asset.ruta_archivo).
+                ruta_archivo=str(ruta_tsx_abs.relative_to(REPO_ROOT)),
+                personaje_id=contexto.get("personaje_id"),
+                fondo_id=contexto.get("fondo_id"),
+                objeto_id=contexto.get("objeto_id"),
+                metadatos={"archivo": archivo, "preview_png": str(png_path.relative_to(_tenant_dir(job.tenant_id)))},
+                aprobado=False,
+            ))
+
 
 def _ejecutar(db: Session, job: models.GenerationJob):
     job.estado = "corriendo"
@@ -496,10 +604,11 @@ def _ejecutar(db: Session, job: models.GenerationJob):
     db.commit()
 
     params = job.parametros or {}
-    # render_episodio no tiene modo --dry-run (no existe "simular" un render local,
-    # no gasta AWS) — siempre se trata como real para que _post_exito() sí registre
-    # el Asset del mp4 resultante.
-    simular = bool(params.get("_simular", True)) and job.tipo != "render_episodio"
+    # render_episodio y los tipos vector_* no tienen modo --dry-run (no existe
+    # "simular" un render/still local, no gastan AWS) — siempre se tratan como
+    # reales para que _post_exito() sí registre el Asset resultante.
+    SIN_SIMULAR = {"render_episodio", "vector_personaje", "vector_fondo", "vector_objeto"}
+    simular = bool(params.get("_simular", True)) and job.tipo not in SIN_SIMULAR
 
     try:
         cmd, cwd, contexto = _construir_comando(db, job)
@@ -536,10 +645,23 @@ def _ejecutar(db: Session, job: models.GenerationJob):
         _post_exito(db, job, contexto, simular)
         job.estado = "completado"
     except Exception as e:  # datos a medio escribir no deben dejar el job colgado en "corriendo"
+        db.rollback()
         job.estado = "fallido"
         job.error = f"job corrió pero falló al actualizar el resto del modelo: {e}"
     job.terminado_en = _now()
-    db.commit()
+    try:
+        db.commit()
+    except Exception as e:
+        # Un error que solo aparece al hacer flush/commit (p.ej. un valor que
+        # desborda una columna) no se ve en el try de arriba — sin este segundo
+        # intento, el job queda colgado en "corriendo" para siempre, silencioso
+        # (la excepción mata el hilo de fondo sin que nadie se entere). Pasó de
+        # verdad una vez con UsageLog.operacion (varchar(60) desbordado).
+        db.rollback()
+        job.estado = "fallido"
+        job.error = f"job corrió pero falló al guardar el resultado: {e}"
+        job.terminado_en = _now()
+        db.commit()
 
 
 def encolar_job(job_id: uuid.UUID):

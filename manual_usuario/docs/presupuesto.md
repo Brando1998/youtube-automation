@@ -4,6 +4,13 @@ Esta página explica exactamente cómo se calcula cada número que ves en el
 dashboard — para confiar en el sistema hace falta saber de dónde sale cada
 cifra, no solo creerle.
 
+!!! note "Las filas de Stability quedaron sin uso"
+    Desde el pivot a biblioteca vectorial (2026-10-31, ver `docs/PROGRESS.md`),
+    personajes/fondos/objetos ya no llaman a Stability — son código. Las filas de
+    Stability de abajo describen `apps/pipeline_2d/generar_hoja.py`/
+    `generar_partes.py`/`generar_fondo.py`, que siguen en el repo pero sin usarse.
+    Quedan documentadas por si alguna vez se retoma ese camino.
+
 ## Precios usados (verificados contra AWS, con una excepción)
 
 | Servicio | Operación | Precio | Fuente |

@@ -1,77 +1,49 @@
-# 4. Personajes: hoja → partes → aprobar
+# 4. Personajes: biblioteca vectorial
 
-Los personajes se crean una sola vez y se reutilizan en todos los episodios que
-los necesiten — andá a `/app/personajes` (no hace falta estar dentro de un
-episodio).
+!!! warning "Este capítulo cambió — ya no se genera con IA de imagen"
+    Hasta el 2026-10-31 este capítulo describía generar una "hoja" con Stability y
+    recortarla en partes. Se abandonó: la hoja salía o fotorrealista o como escena
+    completa, y "quitar el fondo" nunca aisló limpiamente ninguna parte (ver
+    `docs/PROGRESS.md`, pivot del 2026-10-31). Ahora los personajes son **formas
+    vectoriales dibujadas por código** — sin costo de AWS, consistentes por
+    construcción.
 
-## Crear el personaje
+## Cómo se crea un personaje nuevo
 
-Formulario **"Nuevo personaje"**:
+1. Describís el personaje en texto (quién es, cómo se ve, qué tono de color).
+2. Se escribe un archivo `apps/remotion-ilustrado/src/library/personajes/<slug>.tsx`
+   que exporta `ASSET_REF` (el id que después va a usar el episode spec, p.ej.
+   `2d/personajes/tito`) y su definición, compuesta a partir de las formas
+   reutilizables de `library/primitives.tsx` (cuerpo, cabeza, ojos, cejas, las 7
+   bocas por visema ya resueltas con `bocasDesdeForma`, etc.) — mismo set de
+   colores/trazo que el resto de la biblioteca (`library/styleTokens.ts`), para que
+   todo se vea consistente.
+3. Se corre `node scripts/generar_registry.mjs` (dentro de
+   `apps/remotion-ilustrado/`) — reescribe `library/registry.ts` para que el nuevo
+   personaje quede disponible.
 
-- **Nombre**: por ejemplo `lucia`.
-- **asset_ref**: el id que el episode spec va a usar para referenciarlo, por
-  ejemplo `2d/personajes/lucia` — tiene que ser **exactamente** el mismo string
-  que vas a poner en el `asset_ref` del personaje dentro del guion/spec, si no el
-  render no lo va a encontrar.
-- **Color de subtítulo** (opcional): el color del globo de diálogo cuando habla
-  este personaje.
+## Crear la entidad y generar la vista previa
 
-## Paso 1 — Generar la hoja de referencia
+En `/app/personajes`, el formulario **"Nuevo personaje"** sigue igual: nombre y
+`asset_ref` (tiene que coincidir exacto con el `ASSET_REF` del `.tsx`).
 
-Abrí **"Generar hoja de referencia (Fase A4)"** en la fila del personaje:
+Después, se dispara un job de tipo `vector_personaje` con
+`parametros.archivo` = la ruta al `.tsx` (relativa a
+`apps/remotion-ilustrado/`, p.ej. `src/library/personajes/tito.tsx`). El job:
 
-- **Sujeto**: describí el personaje en inglés para el prompt de Stability, por
-  ejemplo `a cheerful young girl, yellow raincoat, lantern, brown hair in braids`.
-  Cuanto más específico, más consistente sale.
-- Simulá primero para confirmar que el pipeline corre.
-- Destildá "Simular" para generar la hoja real — **esto cuesta ~$0.03** (Stable
-  Image Core, 1 llamada).
+1. Regenera el registry (por si el archivo es nuevo o cambió).
+2. Confirma que el `.tsx` declara el `ASSET_REF` esperado.
+3. Renderiza una vista previa fija (`npx remotion still`, local, sin AWS) — el
+   personaje en pose de reposo, sin animación, sobre fondo neutro.
 
-## Paso 2 — Revisar y aprobar la hoja
+**Sin costo, sin checkbox de "Simular"** — no hay nada que simular, es código
+local.
 
-Abrí **"Revisar y aprobar"** en la misma fila: vas a ver la imagen de la hoja
-generada. **Nada avanza hasta que la apruebes** — es la regla del proyecto, no
-una sugerencia (ver `docs/PLAN.md`). Si no te convence, no la apruebes: volvé a
-generar la hoja con otro `sujeto` o seed.
+## Revisar y aprobar
 
-Click en **"Aprobar"** cuando estés conforme.
+Igual que antes: panel **"Revisar y aprobar"** en `/app/personajes`, mostrando la
+vista previa generada. Si no convence (proporciones, color, expresión), se ajusta
+el `.tsx` y se vuelve a correr el job — no hay límite de intentos, no cuesta nada.
 
-## Paso 3 — Separar en partes
-
-Con la hoja aprobada, abrí **"Separar en partes (requiere hoja aprobada)"**. Acá
-hay que decirle al sistema **dónde está cada parte** en la imagen de la hoja —
-no lo adivina. El campo **"Regiones"** espera un JSON así (coordenadas en
-píxeles sobre la hoja, medidas a mano mirándola):
-
-```json
-{
-  "cuerpo": { "x": 60, "y": 320, "w": 420, "h": 560 },
-  "cabeza": { "x": 150, "y": 120, "w": 240, "h": 240 },
-  "ojos_abiertos": { "x": 190, "y": 190, "w": 160, "h": 60 },
-  "ojos_cerrados": { "x": 190, "y": 190, "w": 160, "h": 60 },
-  "cejas": { "x": 190, "y": 170, "w": 160, "h": 30 },
-  "boca_reposo": { "x": 210, "y": 260, "w": 120, "h": 50 },
-  "cabeza_pivot": { "x": 0, "y": -190 }
-}
-```
-
-(`apps/pipeline_2d/regiones.ejemplo.json` en el repo tiene el ejemplo completo,
-con `prop`/`prop_pivot`/`apendice_pivot` opcionales si el personaje lleva algo
-en la mano.)
-
-Simulá primero — el `--dry-run` valida las regiones contra el tamaño real de la
-hoja y te dice si falta alguna, sin gastar nada. Destildá "Simular" cuando esté
-bien: esto hace **19 llamadas reales a Stability** (las 5 partes simples + boca
-en reposo + 6 visemas de la boca, que son 2 llamadas cada uno — buscar la forma
-+ quitar el fondo — más 1 si hay `prop`), a $0.07 cada una.
-
-## Paso 4 — Revisar y aprobar las partes
-
-En "Revisar y aprobar" ahora vas a ver **todas las partes por separado**
-(cuerpo, cabeza, ojos abiertos/cerrados, cejas, las 7 bocas, prop si hay) — cada
-una con fondo transparente. Revisalas todas; aprobar el asset completo las
-aprueba a todas juntas. Si alguna parte salió mal, hoy no hay forma de
-regenerar una sola — hay que repetir el paso 3 completo.
-
-Con esto aprobado, el personaje ya está listo para usarse en el render de
-cualquier episodio que lo referencie por su `asset_ref`.
+Una vez aprobado, el personaje queda en la biblioteca — reutilizable en cualquier
+episodio que lo referencie por su `asset_ref`, sin volver a generarlo.

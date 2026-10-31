@@ -3,7 +3,7 @@ from pathlib import Path
 from fastapi import FastAPI
 from fastapi.staticfiles import StaticFiles
 
-from .routers import assets, auth, episodios, fondos, jobs, paginas, personajes
+from .routers import assets, auth, episodios, fondos, jobs, objetos, paginas, personajes
 
 app = FastAPI(title="youtube-automation API")
 
@@ -13,6 +13,7 @@ app.include_router(auth.router)
 app.include_router(episodios.router)
 app.include_router(personajes.router)
 app.include_router(fondos.router)
+app.include_router(objetos.router)
 app.include_router(jobs.router)
 app.include_router(assets.router)
 app.include_router(paginas.router)

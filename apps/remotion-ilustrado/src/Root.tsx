@@ -3,6 +3,10 @@ import { PruebaParallax } from "./compositions/PruebaParallax";
 import { PruebaEfectos } from "./compositions/PruebaEfectos";
 import { PruebaEpisodeSpec } from "./compositions/PruebaEpisodeSpec";
 import { PruebaAudioReal } from "./compositions/PruebaAudioReal";
+import { PruebaVector } from "./compositions/PruebaVector";
+import { PreviewPersonaje, type PreviewPersonajeProps } from "./compositions/PreviewPersonaje";
+import { PreviewFondo, type PreviewFondoProps } from "./compositions/PreviewFondo";
+import { PreviewObjeto, type PreviewObjetoProps } from "./compositions/PreviewObjeto";
 import { EpisodioCompleto, duracionTotalFrames, type EpisodioCompletoProps } from "./EpisodioCompleto";
 
 // defaultProps minimal — el render real siempre pasa --props=<archivo.json> con el
@@ -49,6 +53,41 @@ export const RemotionRoot: React.FC = () => {
         fps={30}
         width={540}
         height={960}
+      />
+      <Composition
+        id="PruebaVector"
+        component={PruebaVector}
+        durationInFrames={150}
+        fps={30}
+        width={540}
+        height={960}
+      />
+      <Composition<any, PreviewPersonajeProps>
+        id="PreviewPersonaje"
+        component={PreviewPersonaje}
+        durationInFrames={1}
+        fps={30}
+        width={540}
+        height={960}
+        defaultProps={{ asset_ref: "" }}
+      />
+      <Composition<any, PreviewFondoProps>
+        id="PreviewFondo"
+        component={PreviewFondo}
+        durationInFrames={1}
+        fps={30}
+        width={540}
+        height={960}
+        defaultProps={{ asset_ref: "" }}
+      />
+      <Composition<any, PreviewObjetoProps>
+        id="PreviewObjeto"
+        component={PreviewObjeto}
+        durationInFrames={1}
+        fps={30}
+        width={540}
+        height={960}
+        defaultProps={{ asset_ref: "" }}
       />
       <Composition<any, EpisodioCompletoProps>
         id="Episodio"

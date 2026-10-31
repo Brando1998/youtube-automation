@@ -18,6 +18,7 @@ def _validar_pertenencia(db: Session, tenant_id: uuid.UUID, datos: schemas.JobCr
         (datos.episodio_id, models.Episodio, "Episodio"),
         (datos.personaje_id, models.Personaje, "Personaje"),
         (datos.fondo_id, models.Fondo, "Fondo"),
+        (datos.objeto_id, models.Objeto, "Objeto"),
     )
     for entidad_id, Modelo, nombre in comprobaciones:
         if entidad_id is None:
@@ -43,6 +44,7 @@ def crear_job(
         episodio_id=datos.episodio_id,
         personaje_id=datos.personaje_id,
         fondo_id=datos.fondo_id,
+        objeto_id=datos.objeto_id,
         parametros={**datos.parametros, "_simular": datos.simular, "_forzar": datos.forzar},
         creado_por=usuario.id,
     )

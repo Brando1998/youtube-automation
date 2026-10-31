@@ -93,11 +93,31 @@ class FondoOut(BaseModel):
     model_config = {"from_attributes": True}
 
 
+class ObjetoCreate(BaseModel):
+    nombre: str = Field(min_length=1, max_length=200)
+    asset_ref: str = Field(min_length=1, max_length=300)
+
+
+class ObjetoOut(BaseModel):
+    id: uuid.UUID
+    tenant_id: uuid.UUID
+    nombre: str
+    asset_ref: str
+    estado: str
+    creado_en: datetime
+
+    model_config = {"from_attributes": True}
+
+
 class JobCreate(BaseModel):
-    tipo: str = Field(pattern="^(episode_spec|hoja_personaje|partes_personaje|fondo|voz_polly|render_episodio)$")
+    tipo: str = Field(
+        pattern="^(episode_spec|hoja_personaje|partes_personaje|fondo|voz_polly|render_episodio"
+        "|vector_personaje|vector_fondo|vector_objeto)$"
+    )
     episodio_id: uuid.UUID | None = None
     personaje_id: uuid.UUID | None = None
     fondo_id: uuid.UUID | None = None
+    objeto_id: uuid.UUID | None = None
     parametros: dict[str, Any] = Field(default_factory=dict)
     # Por defecto siempre simula (--dry-run) — pausa de costos AWS del usuario
     # (ver docs/PROGRESS.md). Un cliente tiene que pedir explícitamente lo
@@ -115,6 +135,7 @@ class AssetOut(BaseModel):
     ruta_archivo: str
     personaje_id: uuid.UUID | None
     fondo_id: uuid.UUID | None
+    objeto_id: uuid.UUID | None
     episodio_id: uuid.UUID | None
     metadatos: dict | None
     aprobado: bool
@@ -131,6 +152,7 @@ class JobOut(BaseModel):
     episodio_id: uuid.UUID | None
     personaje_id: uuid.UUID | None
     fondo_id: uuid.UUID | None
+    objeto_id: uuid.UUID | None
     parametros: dict | None
     resultado: dict | None
     error: str | None

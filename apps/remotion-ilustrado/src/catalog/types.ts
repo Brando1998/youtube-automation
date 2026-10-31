@@ -2,6 +2,8 @@ import type React from "react";
 import type { LuzDef } from "../components/FlickerLight";
 import type { ParteVisual, Pivote, Segmento, VisemaCode } from "../components/CharacterPuppet";
 
+export type { ParteVisual };
+
 /** Una capa de un fondo (cielo/lejano/medio/suelo/primer_plano). Dos formas posibles:
  * `render()` (closure, usado por los catálogos mock de desarrollo/Prueba*, no
  * serializable) o `src` (ruta relativa a public/, usado por el catálogo real

@@ -5,25 +5,24 @@ En `/app/episodios`, completá el formulario **"Nuevo episodio"**:
 | Campo | Qué poner |
 |---|---|
 | Título | El nombre del episodio, libre. |
-| Estilo | `ilustrado` (2.5D, Remotion — el único con el pipeline completo hoy) o `3d` (Blender, todavía sin pipeline de biblioteca de assets terminado). |
+| Estilo | `ilustrado` (2.5D, Remotion — el único estilo activo; `3d`/Blender se abandonó el 2026-10-31, no usar). |
 | Modo de voz | `narrador` (solo voz en off), `dialogos` (solo personajes hablando) o `mixto` (los dos). |
 | Guion | Opcional acá — se puede completar después, antes de generar el spec. |
 | **Presupuesto en USD** | El tope de gasto para **este** episodio. Dejalo vacío si no querés límite. |
 
 ## Qué cubre el presupuesto (y qué no)
 
-El presupuesto por episodio cubre lo que es **exclusivo de ese video**:
+Después del pivot a biblioteca vectorial (ver `docs/PROGRESS.md`, 2026-10-31),
+**personajes/fondos/objetos ya no gastan AWS en absoluto** — son código, no
+imágenes generadas. Lo único que el presupuesto de un episodio cubre hoy:
 
 - generar el episode spec (guion → JSON, vía Claude/Nova en Bedrock),
 - la voz de cada línea (Polly),
-- el render final (este paso no cuesta nada de AWS, es local).
+- el render final (siempre fue local, cero AWS).
 
-**No cubre** generar personajes ni fondos — esos se crean una sola vez y se
-reutilizan entre episodios, así que su costo no es "de un video" sino de la
-biblioteca completa. Si querés controlar ese gasto, hacelo mirando el costo
-acumulado en las páginas de [Personajes](04-personajes.md) y
-[Fondos](05-fondos.md) directamente (lo ves en cada job, aunque no haya un tope
-dedicado todavía).
+Construir la biblioteca de personajes/fondos/objetos ([capítulo 4](04-personajes.md),
+[capítulo 5](05-fondos.md)) es ahora gratis — podés hacer todos los que quieras
+sin que toque el presupuesto de ningún episodio.
 
 ## Ver y cambiar el presupuesto después
 

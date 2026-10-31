@@ -97,18 +97,38 @@ class Fondo(Base):
     creado_en: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=_now)
 
 
+class Objeto(Base):
+    """Un prop/objeto reutilizable de la biblioteca vectorial (apps/remotion-
+    ilustrado/src/library/objetos/) — mismo shape que Fondo, categoría separada."""
+    __tablename__ = "objetos"
+
+    id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), primary_key=True, default=_uuid)
+    tenant_id: Mapped[uuid.UUID] = mapped_column(ForeignKey("tenants.id"), index=True)
+    nombre: Mapped[str] = mapped_column(String(200))
+    asset_ref: Mapped[str] = mapped_column(String(300))  # p.ej. "2d/objetos/farol"
+    estado: Mapped[str] = mapped_column(String(30), default="borrador")
+    creado_en: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=_now)
+
+
 class Asset(Base):
     """Un archivo generado (hoja de personaje, parte individual, capa de fondo, audio,
-    render final, ...) — siempre bajo revisión humana antes de `aprobado=True`."""
+    render final, asset vectorial de la biblioteca, ...) — siempre bajo revisión
+    humana antes de `aprobado=True`."""
     __tablename__ = "assets"
 
     id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), primary_key=True, default=_uuid)
     tenant_id: Mapped[uuid.UUID] = mapped_column(ForeignKey("tenants.id"), index=True)
-    tipo: Mapped[str] = mapped_column(String(40))  # hoja_personaje|parte_personaje|capa_fondo|audio|render
-    ruta_archivo: Mapped[str] = mapped_column(String(500))  # relativa a data_dir/<tenant_id>/
+    # hoja_personaje|parte_personaje|capa_fondo|audio|render|vector_personaje|vector_fondo|vector_objeto
+    tipo: Mapped[str] = mapped_column(String(40))
+    # Para los tipos vector_*: ruta al .tsx en el repo (apps/remotion-ilustrado/src/
+    # library/...), NO relativa a data_dir/<tenant_id>/ como el resto — la biblioteca
+    # vectorial es código versionado, compartido entre tenants, no un archivo generado
+    # por tenant. El preview sí vive bajo data_dir/<tenant_id>/ (metadatos.preview_png).
+    ruta_archivo: Mapped[str] = mapped_column(String(500))
 
     personaje_id: Mapped[uuid.UUID | None] = mapped_column(ForeignKey("personajes.id"), nullable=True)
     fondo_id: Mapped[uuid.UUID | None] = mapped_column(ForeignKey("fondos.id"), nullable=True)
+    objeto_id: Mapped[uuid.UUID | None] = mapped_column(ForeignKey("objetos.id"), nullable=True)
     episodio_id: Mapped[uuid.UUID | None] = mapped_column(ForeignKey("episodios.id"), nullable=True)
 
     metadatos: Mapped[dict | None] = mapped_column(JSON, nullable=True)  # prompt, seed, modelo, etc.
@@ -124,13 +144,15 @@ class GenerationJob(Base):
     id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), primary_key=True, default=_uuid)
     tenant_id: Mapped[uuid.UUID] = mapped_column(ForeignKey("tenants.id"), index=True)
     tipo: Mapped[str] = mapped_column(String(40))
-    # hoja_personaje|partes_personaje|fondo|voz_polly|voz_local|render_episodio|episode_spec
+    # hoja_personaje|partes_personaje|fondo|voz_polly|voz_local|render_episodio|
+    # episode_spec|vector_personaje|vector_fondo|vector_objeto
     estado: Mapped[str] = mapped_column(String(20), default="pendiente")
     # pendiente|corriendo|completado|fallido
 
     episodio_id: Mapped[uuid.UUID | None] = mapped_column(ForeignKey("episodios.id"), nullable=True)
     personaje_id: Mapped[uuid.UUID | None] = mapped_column(ForeignKey("personajes.id"), nullable=True)
     fondo_id: Mapped[uuid.UUID | None] = mapped_column(ForeignKey("fondos.id"), nullable=True)
+    objeto_id: Mapped[uuid.UUID | None] = mapped_column(ForeignKey("objetos.id"), nullable=True)
 
     parametros: Mapped[dict | None] = mapped_column(JSON, nullable=True)
     resultado: Mapped[dict | None] = mapped_column(JSON, nullable=True)

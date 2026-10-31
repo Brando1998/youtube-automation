@@ -43,6 +43,7 @@ def listar_assets(
     episodio_id: uuid.UUID | None = None,
     personaje_id: uuid.UUID | None = None,
     fondo_id: uuid.UUID | None = None,
+    objeto_id: uuid.UUID | None = None,
     tipo: str | None = None,
     pendientes: bool = False,
     tenant_id: uuid.UUID = Depends(get_tenant_id),
@@ -55,6 +56,8 @@ def listar_assets(
         q = q.filter(models.Asset.personaje_id == personaje_id)
     if fondo_id is not None:
         q = q.filter(models.Asset.fondo_id == fondo_id)
+    if objeto_id is not None:
+        q = q.filter(models.Asset.objeto_id == objeto_id)
     if tipo is not None:
         q = q.filter(models.Asset.tipo == tipo)
     if pendientes:
@@ -96,6 +99,13 @@ def ver_archivo(
 
     if asset.tipo in ("hoja_personaje", "render", "audio"):
         ruta = base
+    elif asset.tipo in ("vector_personaje", "vector_fondo", "vector_objeto"):
+        # ruta_archivo acá es la ruta al .tsx en el repo, no relativa a tenant_dir —
+        # el preview (lo único que hay para mostrar) sí vive bajo tenant_dir.
+        preview = (asset.metadatos or {}).get("preview_png")
+        if not preview:
+            raise HTTPException(status.HTTP_404_NOT_FOUND, "este asset no tiene preview generado")
+        ruta = tenant_dir / preview
     elif asset.tipo == "parte_personaje":
         if not nombre:
             raise HTTPException(status.HTTP_400_BAD_REQUEST, "falta ?nombre= (una clave de metadatos.partes)")

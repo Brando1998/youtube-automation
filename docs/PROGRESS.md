@@ -7,6 +7,82 @@ pueda retomar el trabajo. El plan completo y las decisiones de arquitectura est�
 **Repo**: git inicializado localmente, rama de trabajo `dev` (nunca se hace commit/merge a
 `main` sin aprobación explícita del usuario, por instrucción global del usuario).
 
+## ⚠️ Pivot grande: biblioteca de personajes/objetos/fondos vectorial por código (no más IA de imagen) — 2026-10-31
+
+La primera prueba real de pago (Fase F, ver sección de abajo) generó una hoja de
+personaje y 18 llamadas de "partes" que no sirvieron (fondo de bosque pegado en
+cada recorte — la hoja salió como escena completa, no como referencia aislada).
+Al mostrarle el resultado al usuario, aclaró que lo que quiere no es ilustración
+generada por un modelo de imagen, sino **animación 2D con formas vectoriales
+simples dibujadas por código** — y una **biblioteca de personajes/objetos/lugares
+que crece con cada video y se reutiliza**. Se abandonó definitivamente la línea
+"3d" (Blender). Lottie quedó como idea a explorar después, no se usó.
+
+**Decisión de arquitectura**: se mantiene TODO el motor de Remotion (cámara,
+efectos, subtítulos, audio) y TODO el backend (multitenant, presupuesto,
+dashboard, aprobación) — se reemplaza solo cómo se crea el arte de personajes/
+fondos. Dos seams que ya existían (`CapaFondo.render` en `catalog/types.ts`, y el
+pipeline genérico de jobs/Asset/aprobación) resultaron ser exactamente lo que
+hacía falta.
+
+- **`apps/remotion-ilustrado/src/library/`**: `styleTokens.ts` (paleta/trazo
+  compartidos, equivalente vectorial de `style_guide.json`), `primitives.tsx`
+  (formas reutilizables — cuerpo blob, cabeza, ojos, cejas, boca por visema vía
+  `bocasDesdeForma`, árbol, colina, techo, ventana — generalizando lo que ya
+  estaba hardcodeado una vez en el fallback de `CharacterPuppet.tsx` y en
+  `docs/reference/cabana-lucia.html`), y `personajes/`, `fondos/`, `objetos/` (un
+  `.tsx` por asset, cada uno exporta `ASSET_REF` + su definición). Primer
+  contenido real: **Tito** (erizo) y el fondo **bosque** — reemplazan el intento
+  fallido de Stability con el mismo personaje, dibujado por código.
+- **`ParteVisual`** (CharacterPuppet.tsx) ganó un `render?: () => ReactNode`
+  — mismo patrón que `CapaFondo` ya tenía — aditivo, no rompe nada del camino
+  raster ni de los mocks/`Prueba*`.
+- **`library/registry.ts`** (generado por `scripts/generar_registry.mjs`, Node
+  plano sin devDependency nueva): escanea `library/**/*.tsx` por regex (no
+  importa/ejecuta los archivos), resuelve el problema real — `remotion render
+  --props` necesita JSON puro, un componente de React no se serializa —
+  dejando el registry como import estático que `EpisodeRenderer`/
+  `EpisodioCompleto` consumen como fallback cuando `--props` no trae el
+  `asset_ref`. Composiciones nuevas `PreviewPersonaje`/`PreviewFondo`/
+  `PreviewObjeto` (vía `npx remotion still`, cero AWS) generan el preview sobre
+  el que se aprueba.
+- **Backend**: nuevo modelo `Objeto` (igual forma que `Fondo`) + `objeto_id` en
+  `Asset`/`GenerationJob`, router `routers/objetos.py`. Tres tipos de job nuevos
+  (`vector_personaje`/`vector_fondo`/`vector_objeto`): regeneran el registry,
+  confirman que el `.tsx` declara el `ASSET_REF` esperado, corren `remotion
+  still`, insertan un `Asset` (sin costo — `costos.estimar_costo_job` ya caía a
+  `None` para tipos no contemplados). **El dashboard no necesitó ningún
+  cambio** — el panel "Revisar y aprobar" ya era genérico por tipo de Asset.
+  `preparar_catalogo_remotion` ahora elige raster o vectorial según el tipo del
+  último Asset aprobado de cada Personaje/Fondo — conviven, nada obliga a
+  migrar todo de una.
+- **Bug encontrado y corregido en el camino**: el primer intento de validar
+  "¿el asset_ref quedó en el registry?" buscaba el string literal del
+  `asset_ref` dentro de `registry.ts` — pero ahí solo queda un `import {
+  ASSET_REF as REF_0 }`, el valor del string nunca aparece como texto en ese
+  archivo generado. Se corrigió verificando contra el `.tsx` fuente directo.
+- **Probado de punta a punta, cero AWS**: Tito respira/parpadea/sincroniza boca
+  correctamente con formas vectoriales (verificado en Remotion Studio); los 3
+  jobs vectoriales corren y aprueban vía HTTP real contra un Postgres
+  descartable; un episodio real con Tito + bosque + audio real (reusado de la
+  Fase A6, sin gastar Polly de nuevo) renderiza un mp4 de 5s con audio real
+  (confirmado con `ffprobe`/`volumedetect`) — verificado visualmente, subtítulo
+  con palabra clave resaltada, globo de diálogo, personaje y fondo vectoriales
+  todo junto.
+- **Qué queda sin tocar**: `apps/pipeline_2d/generar_hoja.py`/
+  `generar_partes.py`/`generar_fondo.py` y los tipos de job viejos
+  (`hoja_personaje`/`partes_personaje`/`fondo`) — en el repo, sin usarse, sin
+  borrarse. Los mocks de `catalog/fondos.tsx`/`catalog/personajes.tsx` (fixtures
+  de desarrollo de las composiciones `Prueba*`) tampoco se tocaron. El tenant de
+  prueba de la Fase F (con el personaje "tito" roto, partes con fondo de bosque
+  pegado) queda como registro histórico, no se borró.
+
+**Pendiente real**: construir más personajes/objetos/fondos de la biblioteca a
+medida que se necesiten episodios nuevos (cada uno es un `.tsx` nuevo +
+`generar_registry.mjs` + aprobar el preview) — ya no requiere AWS ni Marketplace
+ni perfiles de pago para nada de arte. Lo único que sigue gastando AWS es
+`episode_spec` (Nova/Claude, centavos) y `voz_polly` (Polly, centavos).
+
 ## ✅ Sistema completo del lado del código (presupuesto, render de episodio, aprobación, manual) — 2026-10-30
 
 Cierre de una sesión larga pedida por el usuario para "completar el sistema sin

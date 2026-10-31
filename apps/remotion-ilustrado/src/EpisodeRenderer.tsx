@@ -14,6 +14,7 @@ import { Rain } from "./components/Rain";
 import { Lightning } from "./components/Lightning";
 import { CharacterPuppet, type Segmento } from "./components/CharacterPuppet";
 import type { FondoDef, PersonajeDef } from "./catalog/types";
+import { FONDOS_VECTOR, PERSONAJES_VECTOR } from "./library/registry";
 
 // ---- Tipos mínimos que reflejan episode_spec/schema.json (subset usado aquí) ----
 // No se generan automáticamente del JSON Schema (sería una dependencia más para un
@@ -139,7 +140,13 @@ export function TomaIlustrada({
     golpeZoomFrames,
   });
 
-  const fondo = escena.fondo ? fondos[escena.fondo] : undefined;
+  // El fallback a *_VECTOR cubre los assets de la biblioteca de código (library/) —
+  // --props de render_episodio no los trae (son componentes, no datos JSON), los
+  // resuelve el registry generado, importado estático en el bundle.
+  const fondoVector = escena.fondo ? FONDOS_VECTOR[escena.fondo] : undefined;
+  const fondo = escena.fondo
+    ? (fondos[escena.fondo] ?? (fondoVector ? { id: escena.fondo, ...fondoVector } : undefined))
+    : undefined;
   const capasVisibles = ilustrado?.capas_fondo
     ? fondo?.capas.filter((c) => ilustrado.capas_fondo!.includes(c.id))
     : fondo?.capas;
@@ -172,7 +179,11 @@ export function TomaIlustrada({
           // pEscena.id es el id del personaje en el spec (igual que `hablante`), no el
           // asset_ref — el asset_ref solo sirve para consultar el catálogo visual.
           const specPersonaje = spec.personajes.find((p) => p.id === pEscena.id);
-          const def = specPersonaje?.asset_ref ? personajesCatalogo[specPersonaje.asset_ref] : undefined;
+          const refPersonaje = specPersonaje?.asset_ref;
+          const personajeVector = refPersonaje ? PERSONAJES_VECTOR[refPersonaje] : undefined;
+          const def = refPersonaje
+            ? (personajesCatalogo[refPersonaje] ?? (personajeVector ? { id: refPersonaje, ...personajeVector } : undefined))
+            : undefined;
           const lineaActiva = toma.lineas.find((l) => l.hablante === pEscena.id);
           const audio = lineaActiva ? lineasAudio[lineaActiva.id] : undefined;
           return (

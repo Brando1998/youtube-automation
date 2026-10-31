@@ -7,9 +7,12 @@ export type VisemaCode = "reposo" | "A" | "E" | "O" | "MBP" | "FV" | "L";
 export interface ParteVisual {
   /** PNG con fondo transparente, ruta relativa a `public/` del app Remotion (se
    * resuelve con `staticFile()`, no es una URL directa — ver Placeholder más abajo).
-   * Si no hay `src`, se dibuja un placeholder (forma simple de color), para poder
-   * probar la animación sin arte real (Fase A4+). */
+   * Camino viejo (Stability), sin uso para assets nuevos — ver `render`. */
   src?: string;
+  /** Forma vectorial dibujada por código (biblioteca en `library/`, mismo patrón
+   * que `CapaFondo.render` en catalog/types.ts) — el camino real para assets
+   * nuevos: sin llamadas a IA de imagen, consistente por construcción. */
+  render?: () => React.ReactNode;
 }
 
 export interface Pivote {
@@ -74,6 +77,9 @@ function visemaActivo(visemas: Segmento[] | undefined, frame: number): VisemaCod
 function Placeholder({ parte, fallback }: { parte?: ParteVisual; fallback: React.ReactNode }) {
   if (parte?.src) {
     return <image href={staticFile(parte.src)} />;
+  }
+  if (parte?.render) {
+    return <>{parte.render()}</>;
   }
   return <>{fallback}</>;
 }

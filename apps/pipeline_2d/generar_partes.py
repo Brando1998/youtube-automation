@@ -251,7 +251,10 @@ def generar_partes(personaje_id, regiones_path, out_dir, dry_run=False):
 
     llamadas_reales = contar_llamadas_reales(regiones)
     print("USO_REAL: " + json.dumps([{
-        "servicio": "bedrock-stability", "operacion": f"{MODEL_REMOVE_BG}+{MODEL_SEARCH_REPLACE}",
+        # Corto a propósito: UsageLog.operacion es varchar(60) — los dos model id
+        # completos concatenados (~85 caracteres) desbordaban la columna y tiraba
+        # abajo la transacción completa (incluido el Asset ya generado).
+        "servicio": "bedrock-stability", "operacion": "remove-background+search-replace",
         "cantidad": llamadas_reales, "unidad": "llamadas",
         "costo_estimado_usd": round(llamadas_reales * PRECIO_EDICION_USD, 4),
     }]))

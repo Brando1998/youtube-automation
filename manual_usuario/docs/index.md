@@ -15,8 +15,8 @@ para subir a YouTube.
 ```mermaid
 flowchart LR
     A[Crear episodio<br>+ presupuesto] --> B[Guion → episode spec]
-    B --> C[Personajes<br>hoja → partes → aprobar]
-    B --> D[Fondos<br>capas → aprobar]
+    B --> C[Personajes<br>vectorial → aprobar]
+    B --> D[Fondos/objetos<br>vectorial → aprobar]
     B --> E[Voz por línea<br>Polly → aprobar]
     C --> F[Renderizar<br>episodio completo]
     D --> F
@@ -25,9 +25,11 @@ flowchart LR
     G --> H[Subir a YouTube<br>a mano]
 ```
 
-Los pasos C, D y E (personajes, fondos, voz) se pueden hacer en cualquier orden,
-y los personajes/fondos se pueden reutilizar entre episodios — no hay que
-rehacerlos cada vez.
+Los pasos C, D y E (personajes, fondos/objetos, voz) se pueden hacer en
+cualquier orden, y los personajes/fondos/objetos se pueden reutilizar entre
+episodios — no hay que rehacerlos cada vez. Personajes/fondos/objetos son
+código (sin IA de imagen, sin costo) desde el pivot del 2026-10-31 — ver
+`docs/PROGRESS.md`.
 
 ## Antes de empezar: la pausa de costos
 
