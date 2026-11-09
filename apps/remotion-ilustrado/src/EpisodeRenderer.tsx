@@ -204,6 +204,7 @@ export function TomaIlustrada({
                   cejas={def?.cejas}
                   bocas={def?.bocas}
                   prop={def?.prop}
+                  apendice={def?.apendice}
                   visemas={audio?.visemas}
                   mirarEnFrame={primerEventoFrame}
                 />

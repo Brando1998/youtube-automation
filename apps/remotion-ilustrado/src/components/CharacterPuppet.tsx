@@ -41,6 +41,9 @@ export interface CharacterPuppetProps {
   cejas?: ParteVisual;
   bocas?: Partial<Record<VisemaCode, ParteVisual>>;
   prop?: ParteVisual;
+  /** Apéndice que se balancea (cola, antena, lo que aplique) — si no se define,
+   * cae al círculo genérico de siempre (no rompe a Tito ni a nada ya aprobado). */
+  apendice?: ParteVisual;
 
   /** Pivotes relativos al origen (pies, 0,0) — valores por defecto pensados para un
    * puppet de ~240 unidades de alto; ajustar cuando lleguen las partes reales con
@@ -102,6 +105,7 @@ export function CharacterPuppet({
   cejas,
   bocas,
   prop,
+  apendice,
   cabezaPivot = { x: 0, y: -190 },
   propPivot = { x: 55, y: -150 },
   apendicePivot = { x: -25, y: -210 },
@@ -140,7 +144,10 @@ export function CharacterPuppet({
         />
 
         <g transform={`rotate(${sway} ${apendicePivot.x} ${apendicePivot.y})`}>
-          <circle cx={apendicePivot.x} cy={apendicePivot.y} r={14} fill="#7a4a2a" stroke="#05070A" strokeWidth={3} />
+          <Placeholder
+            parte={apendice}
+            fallback={<circle cx={apendicePivot.x} cy={apendicePivot.y} r={14} fill="#7a4a2a" stroke="#05070A" strokeWidth={3} />}
+          />
         </g>
 
         <g transform={`rotate(${look * 5} ${cabezaPivot.x} ${cabezaPivot.y})`}>

@@ -43,6 +43,7 @@ export interface PersonajeDef {
   cejas?: ParteVisual;
   bocas?: Partial<Record<VisemaCode, ParteVisual>>;
   prop?: ParteVisual;
+  apendice?: ParteVisual;
 }
 
 /** Catálogo real completo, tal como lo escribe

@@ -7,6 +7,43 @@ pueda retomar el trabajo. El plan completo y las decisiones de arquitectura est�
 **Repo**: git inicializado localmente, rama de trabajo `dev` (nunca se hace commit/merge a
 `main` sin aprobación explícita del usuario, por instrucción global del usuario).
 
+## ✅ Segundo personaje de la biblioteca (Rocco, el perro) + estándares de composición — 2026-11-07
+
+Primer personaje construido después del pivot del 2026-10-31 sin ser Tito — sirvió
+para confirmar que el patrón de `library/` generaliza a un animal distinto, y reveló
+que construir formas "pegadas" a otra pieza (una cola) a mano, adivinando curvas
+Bézier, falla sistemáticamente. 3 rondas de feedback visual del usuario (patas
+amontonadas, cola flotando como triángulo, cola invisible por un bug de `mask`)
+antes de llegar a un diseño aprobado. El usuario pidió explícitamente investigar
+cómo evitar seguir fallando así — ver `apps/remotion-ilustrado/src/library/REGLAS.md`
+(nuevo) para las reglas completas, resumen aquí:
+
+- **`FormaAhusada`** (`primitives.tsx`): construye cualquier apéndice ahusado
+  (cola/oreja/cuerno) desde 2 círculos y sus tangentes exactas — nunca más curvas
+  Bézier con puntos de control adivinados. Es el equivalente 2D de fusionar
+  metaballs en el pipeline 3D.
+- **`CharacterPuppet` ahora acepta `apendice` real** (antes era un círculo fijo sin
+  forma propia) — cambio aditivo, no afecta a Tito.
+- **Dos reglas de solape, no una** (R2a/R2b en REGLAS.md): la regla estándar de
+  rigging ("el anclaje debe quedar 50% embebido en el padre") solo aplica si la
+  pieza se funde por color sin recortar nada. Para la técnica que realmente se usó
+  en Rocco (ocultar con `<mask>` la parte que cae dentro del cuerpo), la regla es la
+  opuesta — el ancla debe quedar *cerca del borde*, no profundamente adentro. La
+  primera versión de este documento solo tenía la regla "3D" y reprobaba al propio
+  diseño aprobado — se corrigió tras probarla.
+- **`scripts/validar_silueta.mjs`** (`npm run validar <preview.png>`, nueva
+  dependencia de desarrollo `pngjs`): cuenta componentes de píxeles conectados sobre
+  el preview ya renderizado (cero costo extra) y alerta si hay una región grande
+  desconectada del cuerpo principal. Probado contra una versión rechazada por el
+  usuario (`rocco_v4`, la cola-triángulo) — **no la detectó** (el triángulo tocaba
+  el cuerpo por una esquina de 1 píxel, "conectado" mas no "bien pegado"). Esa es la
+  razón de la regla R2a/R2b: mide cuánto solapan dos piezas, no si se tocan — el
+  validador de píxeles es una red de seguridad barata, no el chequeo principal.
+- Investigación previa (WebSearch) confirmó que el enfoque "generar código →
+  renderizar → inspeccionar visualmente → corregir" ya tiene nombre en papers 2026
+  ("render-in-the-loop", IntroSVG, RefineSVG) y que la regla de solape mínimo en
+  puntos de anclaje coincide con estándares de rigging (Roblox attachment points).
+
 ## ⚠️ Pivot grande: biblioteca de personajes/objetos/fondos vectorial por código (no más IA de imagen) — 2026-10-31
 
 La primera prueba real de pago (Fase F, ver sección de abajo) generó una hoja de

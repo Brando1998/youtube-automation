@@ -38,6 +38,7 @@ export function PreviewPersonaje({ asset_ref }: PreviewPersonajeProps) {
             cejas={def.cejas}
             bocas={def.bocas}
             prop={def.prop}
+            apendice={def.apendice}
             cabezaPivot={def.cabezaPivot}
             propPivot={def.propPivot}
             apendicePivot={def.apendicePivot}
