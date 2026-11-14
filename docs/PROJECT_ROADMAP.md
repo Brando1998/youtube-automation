@@ -679,6 +679,102 @@ DESPUÉS de un MVP real (nuevas familias anatómicas, IK, editor de escenas), y 
 MVP real todavía depende de la ejecución contra AWS que sigue en pausa (ver Fase
 8). No hay nada que adelantar aquí sin esa pieza.
 
+## Fase 12 — Detectar qué necesita un guion + fábrica de assets (2026-11-14)
+
+**Estado: ✅ completa (Fases A-D del plan `sleepy-tinkering-cascade.md`), verificada en el servidor real.**
+
+Disparada por una pregunta directa probando el pipeline real: un episodio con un
+guion sobre el estrés no tenía ningún personaje/fondo que encajara (solo existía
+Lucía+bosque) — y la idea real del usuario es poder mandar CUALQUIER guion. Esto
+reveló que el sistema de antes solo sabía elegir entre un elenco fijo, nunca
+detectar qué hace falta ni crear nada nuevo.
+
+### Fase A/B — Detectar + emparejar (sin IA inventando geometría)
+
+- `apps/pipeline_spec/detectar_necesidades.py` (Bedrock, mismo patrón que
+  `generar_episode_spec.py`): lee el guion, lista personajes/objetos/fondos
+  necesarios con tags — NUNCA decide asset_ref ni dibuja nada.
+- `app/matching.py` (Python puro, sin IA): empareja esas necesidades contra
+  `library/registry.json` (ahora también generado por `generar_registry.mjs`,
+  misma fuente que el `registry.ts` de TypeScript) por intersección de tags.
+- Job `detectar_necesidades` + panel en `episodio_detail.html` ("Detectar
+  necesidades") con tabla ✅ coincide / ⚠️ falta — antes de gastar en el resto.
+- **Verificado con el caso real**: las 3 necesidades del guion del estrés
+  ("una persona", "un corazón", "un cerebro") no encontraban nada al principio
+  — después de la Fase B (ver abajo), las 3 resuelven con match perfecto.
+
+### Fase C — Familias paramétricas (opción 1, elegida primero)
+
+- `library/familias/persona.tsx` y `library/familias/icono.tsx`: factories
+  (`crearPersona(params)`, `crearIcono(params)`) que reciben parámetros
+  (tono de piel, color de ropa, forma del ícono) — reusan la misma geometría
+  exacta que ya tenían `persona-generica.tsx`/`corazon.tsx`/`cerebro.tsx`
+  (Fase B del plan anterior), sin duplicar código nuevo.
+- `generar_registry.mjs` escanea `library/familias/` y expone
+  `FAMILIAS_PERSONAJE_VECTOR`/`FAMILIAS_OBJETO_VECTOR` + `parametrosSchema` en
+  `registry.json` — el dashboard arma el formulario de creación SOLO a partir
+  de ese schema, sin hardcodear nada por familia nueva.
+- `Personaje`/`Objeto` (DB) += `familia_ref`/`parametros`. Crear una instancia
+  desde `/app/personajes` o `/app/objetos` sintetiza su propio `asset_ref`
+  (`familia/<nombre>/<uuid>`) — sirve de id estable para el spec sin necesitar
+  ningún archivo de código nuevo por instancia.
+- `EpisodeRenderer.tsx` materializa la definición de una familia AL MOMENTO DEL
+  RENDER (los parámetros viajan por `--props`, la factory vive en el bundle) —
+  es lo único que no podía viajar ya armado, tendría funciones de render.
+- **Bug real encontrado probando contra el servidor** (no en revisión de
+  código): `asset_ref` es `NOT NULL` desde el INSERT — el código intentaba
+  poblarlo recién después de un `flush()`, que ya fallaba antes de llegar ahí.
+  Corregido generando el id del lado de Python antes de construir el modelo.
+- **Verificado de punta a punta en el servidor real**: creada una instancia
+  real (`piel: media, ropa: #8E5BD1`) vía API, generado su preview
+  (`remotion still` real, sin AWS), confirmado visualmente que el color
+  correcto salió en el render, y aprobada — mismo flujo genérico de
+  "Revisar y aprobar" que ya usaban personajes/fondos.
+
+### Fase D — Generación asistida por IA (opción 2, solo si la familia no alcanza)
+
+**Alcance deliberado: solo objetos simples, sin rig.** Un personaje articulado
+generado por IA necesitaría anclas/huesos coherentes sin ningún validador
+geométrico que lo confirme — mucho más riesgoso que un objeto estático. Queda
+fuera a propósito, no es un olvido.
+
+- `apps/web/app/svg_seguro.py` + copia en `apps/pipeline_spec/svg_seguro.py`
+  (duplicado a propósito, mismo criterio que `COSTO_PLACEHOLDER_TEXTO_USD`/
+  `CLIPS_DISPONIBLES`: los scripts de `apps/pipeline_*` no importan código de
+  `apps/web` para poder seguir corriendo standalone): sanea el SVG que devuelve
+  el modelo con `xml.etree.ElementTree` (stdlib, sin dependencia nueva) y una
+  lista blanca explícita de tags/atributos — cualquier otra cosa se elimina,
+  nunca se "arregla". Probado contra `<script>`, `onclick`/`onload`,
+  `<image>` externa, `javascript:` en atributos, `<foreignObject>` — todos
+  neutralizados, el contenido real sobrevive.
+- `apps/pipeline_spec/generar_objeto_ia.py` (Bedrock, mismo patrón que el
+  resto): pide un SVG simple, lo sanea, reintenta si no sirve.
+- Job `ia_objeto` + botón "Generar con IA" en la tabla de necesidades (solo
+  para objetos sin match) + panel de revisión en `/app/objetos` (el SVG ya
+  saneado se embebe inline, sin necesitar Remotion para previsualizarlo). El
+  `Objeto` real se crea recién AL APROBAR (`routers/assets.py`), nunca antes.
+- `SvgGenerado.tsx` + `engine/svgSeguro.ts` (segunda capa de saneo, en
+  TypeScript — defensa en profundidad, no la capa principal) inyecta el SVG
+  aprobado vía `dangerouslySetInnerHTML` — seguro acá porque Remotion renderiza
+  sobre Chromium real, no SSR.
+- **Bug real encontrado RENDERIZANDO** (otra vez no en revisión de código): el
+  SVG guardado es un documento `<svg>...</svg>` completo, pero se inyectaba
+  dentro de un `<g>` que ya vive adentro de OTRO `<svg>` — un `<svg>` anidado
+  sin `width`/`height` propios no tiene tamaño por defecto, el primer render
+  de prueba salió completamente en blanco. Corregido extrayendo solo el
+  contenido interno (`extraerContenidoInterno`) antes de inyectar;
+  re-verificado con el caso "malicioso" (script + onclick): el círculo real
+  aparece, nada peligroso se ejecuta.
+
+### Pendiente, fuera de alcance (documentado, no resuelto en esta fase)
+
+**Los objetos — de CUALQUIER origen (biblioteca fija, familia, o IA) — todavía
+no se pueden colocar dentro de una escena real.** `episode_spec`/
+`EpisodeRenderer.tsx` nunca tuvieron el concepto de "objeto en escena" (solo
+"personajes_en_escena") — es un hueco anterior a todo este trabajo, no
+introducido ni resuelto acá. `SvgGenerado.tsx` queda listo (componente +
+saneo + prueba visual) para cuando se construya ese mecanismo.
+
 ---
 
 ## MVP (criterio de "funciona de punta a punta")
@@ -694,12 +790,15 @@ cuándo gastar, y se respeta tal cual hasta que él la levante explícitamente.
 
 ## Próximo paso inmediato
 
-Con el hallazgo de que las Fases 7-10 ya existían y ahora están conectadas al
-motor de animación nuevo (Fases 1-6 de esta sesión), **el trabajo de código
-puro que se podía hacer sin gastar en AWS está sustancialmente completo**.
-Queda, sin bloquear nada de lo anterior: Fase 6 (Asset Factory, deferida a
-propósito hasta que haya un segundo personaje humano real), más clips de
-animación si surge la necesidad concreta de uno nuevo, y Fase 11 (después de un
-MVP real). El siguiente paso real de FONDO ya no es de código — es que el
-usuario decida cuándo levantar la pausa de costos de AWS para probar
+Con la Fase 12 cerrada, el sistema ya puede detectar qué necesita un guion
+cualquiera, emparejarlo contra la biblioteca, y — si falta algo — crearlo desde
+la app misma (familia paramétrica primero, IA con revisión humana si no
+alcanza). **El trabajo de código puro que se podía hacer sin gastar en AWS
+está sustancialmente completo.** Queda, sin bloquear nada de lo anterior:
+"objeto en escena" (hueco pre-existente documentado en la Fase 12), más
+plantillas/familias si aparece una necesidad concreta nueva, personajes
+generados por IA (deferido a propósito, necesita resolver anclas/huesos
+primero), y Fase 11 (después de un MVP real). El siguiente paso real de FONDO
+ya no es de código — es que el usuario decida cuándo levantar la pausa de
+costos de AWS para probar
 Bedrock/Polly de verdad por primera vez.
