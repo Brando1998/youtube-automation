@@ -1,11 +1,11 @@
 import { Series } from "remotion";
-import { TomaIlustrada, type AudioLinea, type EpisodeSpec } from "./EpisodeRenderer";
-import type { FondoDef, PersonajeDef } from "./catalog/types";
+import { TomaIlustrada, type AudioLinea, type EntradaPersonajeCatalogo, type EpisodeSpec } from "./EpisodeRenderer";
+import type { FondoDef } from "./catalog/types";
 
 export type EpisodioCompletoProps = {
   spec: EpisodeSpec;
   fondos: Record<string, FondoDef>;
-  personajesCatalogo: Record<string, PersonajeDef>;
+  personajesCatalogo: Record<string, EntradaPersonajeCatalogo>;
   lineasAudio: Record<string, AudioLinea>;
 } & Record<string, unknown>;
 

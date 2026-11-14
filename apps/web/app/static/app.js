@@ -136,6 +136,35 @@ function renderPanelAssets(contenedorEl, assets) {
   });
 }
 
+// Fase C (docs/PROJECT_ROADMAP.md) — formulario genérico para los parámetros de
+// una familia paramétrica (library/familias/), construido desde el
+// `parametrosSchema` que devuelve GET /familias — así una familia nueva no
+// necesita ningún cambio de este lado, el formulario sale solo del schema.
+function renderizarCamposParametros(contenedorEl, parametrosSchema) {
+  contenedorEl.innerHTML = Object.entries(parametrosSchema).map(([nombre, campo]) => {
+    const id = `param_${nombre}`;
+    if (campo.tipo === 'enum') {
+      const opciones = (campo.opciones || []).map(
+        (o) => `<option value="${o}" ${o === campo.porDefecto ? 'selected' : ''}>${o}</option>`
+      ).join('');
+      return `<label>${campo.etiqueta}<select name="${id}">${opciones}</select></label>`;
+    }
+    if (campo.tipo === 'color') {
+      return `<label>${campo.etiqueta}<input type="color" name="${id}" value="${campo.porDefecto}"></label>`;
+    }
+    return `<label>${campo.etiqueta}<input type="text" name="${id}" value="${campo.porDefecto || ''}"></label>`;
+  }).join('');
+}
+
+// Lee de vuelta los valores de los campos que arma renderizarCamposParametros.
+function leerParametros(form, parametrosSchema) {
+  const parametros = {};
+  for (const nombre of Object.keys(parametrosSchema)) {
+    parametros[nombre] = form.elements[`param_${nombre}`]?.value ?? '';
+  }
+  return parametros;
+}
+
 document.addEventListener('DOMContentLoaded', () => {
   const btnLogout = document.getElementById('btn-logout');
   if (btnLogout) {

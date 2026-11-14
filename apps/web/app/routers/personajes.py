@@ -16,8 +16,18 @@ def crear_personaje(
     tenant_id: uuid.UUID = Depends(get_tenant_id),
     db: Session = Depends(get_db),
 ):
-    personaje = models.Personaje(tenant_id=tenant_id, **datos.model_dump())
-    db.add(personaje)
+    campos = datos.model_dump()
+    personaje = models.Personaje(tenant_id=tenant_id, **campos)
+    if datos.familia_ref:
+        # asset_ref de un personaje de familia (Fase C) se sintetiza acá, nunca
+        # lo manda el cliente — sirve de id estable para el spec (ver
+        # pipeline_runner.preparar_catalogo_remotion), necesita el id real, por
+        # eso el flush antes de fijarlo.
+        db.add(personaje)
+        db.flush()
+        personaje.asset_ref = f"familia/{datos.familia_ref.rsplit('/', 1)[-1]}/{personaje.id}"
+    else:
+        db.add(personaje)
     db.commit()
     db.refresh(personaje)
     return personaje

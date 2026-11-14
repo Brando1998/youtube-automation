@@ -9,6 +9,7 @@ import { PruebaHombroFK } from "./compositions/PruebaHombroFK";
 import { PreviewPersonaje, type PreviewPersonajeProps } from "./compositions/PreviewPersonaje";
 import { PreviewFondo, type PreviewFondoProps } from "./compositions/PreviewFondo";
 import { PreviewObjeto, type PreviewObjetoProps } from "./compositions/PreviewObjeto";
+import { PreviewFamilia, type PreviewFamiliaProps } from "./compositions/PreviewFamilia";
 import { EpisodioCompleto, duracionTotalFrames, type EpisodioCompletoProps } from "./EpisodioCompleto";
 
 // defaultProps minimal — el render real siempre pasa --props=<archivo.json> con el
@@ -106,6 +107,15 @@ export const RemotionRoot: React.FC = () => {
         width={540}
         height={960}
         defaultProps={{ asset_ref: "" }}
+      />
+      <Composition<any, PreviewFamiliaProps>
+        id="PreviewFamilia"
+        component={PreviewFamilia}
+        durationInFrames={1}
+        fps={30}
+        width={540}
+        height={960}
+        defaultProps={{ familia: "", tipo: "personaje", parametros: {} }}
       />
       <Composition<any, EpisodioCompletoProps>
         id="Episodio"

@@ -138,5 +138,58 @@
       "capabilities": [],
       "descripcion": "Corazón simple — ícono genérico para temas de salud/emoción en videos explicativos."
     }
+  },
+  {
+    "assetRef": "familia/icono",
+    "tipo": "familia_objeto",
+    "metadatos": {
+      "id": "familia/icono",
+      "version": 1,
+      "tags": [],
+      "capabilities": []
+    },
+    "parametrosSchema": {
+      "forma": {
+        "tipo": "enum",
+        "opciones": [
+          "corazon",
+          "cerebro"
+        ],
+        "etiqueta": "Forma",
+        "porDefecto": "corazon"
+      },
+      "color": {
+        "tipo": "color",
+        "etiqueta": "Color principal",
+        "porDefecto": "#D94B4B"
+      }
+    }
+  },
+  {
+    "assetRef": "familia/persona",
+    "tipo": "familia_personaje",
+    "metadatos": {
+      "id": "familia/persona",
+      "version": 1,
+      "tags": [],
+      "capabilities": []
+    },
+    "parametrosSchema": {
+      "piel": {
+        "tipo": "enum",
+        "opciones": [
+          "clara",
+          "media",
+          "oscura"
+        ],
+        "etiqueta": "Tono de piel",
+        "porDefecto": "clara"
+      },
+      "ropa": {
+        "tipo": "color",
+        "etiqueta": "Color de ropa",
+        "porDefecto": "#3a4049"
+      }
+    }
   }
 ]

@@ -9,9 +9,19 @@
     <label>Nombre
       <input type="text" name="nombre" required placeholder="lucia">
     </label>
-    <label>asset_ref
-      <input type="text" name="asset_ref" required placeholder="2d/personajes/lucia">
-    </label>
+    <label class="fila-check"><input type="radio" name="origen" value="biblioteca" checked> Biblioteca fija (ya tiene su .tsx)</label>
+    <label class="fila-check"><input type="radio" name="origen" value="familia"> Familia paramétrica (crear una instancia nueva)</label>
+    <div id="campos-origen-biblioteca">
+      <label>asset_ref
+        <input type="text" name="asset_ref" placeholder="2d/personajes/lucia">
+      </label>
+    </div>
+    <div id="campos-origen-familia" hidden>
+      <label>Familia
+        <select id="sel-familia-personaje" name="familia_ref"></select>
+      </label>
+      <div id="parametros-familia-personaje"></div>
+    </div>
     <label>Color de subtítulo (opcional)
       <input type="text" name="color_subtitulo" placeholder="#F2B33D">
     </label>
@@ -42,15 +52,21 @@ async function cargarPersonajes() {
         <strong>${p.nombre}</strong>
         ${badgeEstado(p.estado)}
       </div>
-      <p class="vacio" style="padding:0.25rem 0">${p.asset_ref}</p>
+      <p class="vacio" style="padding:0.25rem 0">${p.asset_ref}${p.familia_ref ? ` — familia ${p.familia_ref} (${JSON.stringify(p.parametros)})` : ''}</p>
       <details>
         <summary>Generar preview vectorial (biblioteca de código, sin IA de imagen)</summary>
-        <form class="form-vector" data-personaje-id="${p.id}">
-          <label>Archivo .tsx (relativo a apps/remotion-ilustrado, p.ej. library/personajes/lucia.tsx)
-            <input type="text" name="archivo" required placeholder="library/personajes/lucia.tsx">
-          </label>
-          <button type="submit">Generar preview</button>
-        </form>
+        ${p.familia_ref ? `
+          <form class="form-vector-familia" data-personaje-id="${p.id}">
+            <button type="submit">Generar preview</button>
+          </form>
+        ` : `
+          <form class="form-vector" data-personaje-id="${p.id}">
+            <label>Archivo .tsx (relativo a apps/remotion-ilustrado, p.ej. library/personajes/lucia.tsx)
+              <input type="text" name="archivo" required placeholder="library/personajes/lucia.tsx">
+            </label>
+            <button type="submit">Generar preview</button>
+          </form>
+        `}
       </details>
       <details>
         <summary>Generar hoja de referencia (Fase A4)</summary>
@@ -84,17 +100,42 @@ async function cargarPersonajes() {
   }
 }
 
+let familiasPersonaje = [];
+async function cargarFamiliasPersonaje() {
+  familiasPersonaje = await apiGet('/familias?tipo=personaje');
+  const sel = document.getElementById('sel-familia-personaje');
+  sel.innerHTML = familiasPersonaje.map((f) => `<option value="${f.assetRef}">${f.assetRef}</option>`).join('');
+  if (familiasPersonaje.length) renderizarCamposParametros(document.getElementById('parametros-familia-personaje'), familiasPersonaje[0].parametrosSchema);
+}
+document.getElementById('sel-familia-personaje').addEventListener('change', (ev) => {
+  const familia = familiasPersonaje.find((f) => f.assetRef === ev.target.value);
+  if (familia) renderizarCamposParametros(document.getElementById('parametros-familia-personaje'), familia.parametrosSchema);
+});
+document.querySelectorAll('#form-personaje input[name="origen"]').forEach((input) => {
+  input.addEventListener('change', () => {
+    const esFamilia = document.querySelector('#form-personaje input[name="origen"]:checked').value === 'familia';
+    document.getElementById('campos-origen-biblioteca').hidden = esFamilia;
+    document.getElementById('campos-origen-familia').hidden = !esFamilia;
+  });
+});
+cargarFamiliasPersonaje();
+
 document.getElementById('form-personaje').addEventListener('submit', async (ev) => {
   ev.preventDefault();
   const form = ev.target;
   const errorEl = document.getElementById('error-personaje');
   errorEl.hidden = true;
+  const esFamilia = form.origen.value === 'familia';
   try {
-    await apiPost('/personajes', {
-      nombre: form.nombre.value,
-      asset_ref: form.asset_ref.value,
-      color_subtitulo: form.color_subtitulo.value || null,
-    });
+    const payload = { nombre: form.nombre.value, color_subtitulo: form.color_subtitulo.value || null };
+    if (esFamilia) {
+      const familia = familiasPersonaje.find((f) => f.assetRef === form.familia_ref.value);
+      payload.familia_ref = form.familia_ref.value;
+      payload.parametros = leerParametros(form, familia.parametrosSchema);
+    } else {
+      payload.asset_ref = form.asset_ref.value;
+    }
+    await apiPost('/personajes', payload);
     form.reset();
     await cargarPersonajes();
   } catch (e) {
@@ -108,6 +149,25 @@ function estadoEl(personajeId) {
 }
 
 document.addEventListener('submit', async (ev) => {
+  if (ev.target.matches('.form-vector-familia')) {
+    ev.preventDefault();
+    const form = ev.target;
+    const personajeId = form.dataset.personajeId;
+    const estado = estadoEl(personajeId);
+    estado.hidden = false;
+    estado.textContent = 'Generando preview (remotion still, sin AWS)...';
+    try {
+      const job = await apiPost('/jobs', { tipo: 'vector_personaje', personaje_id: personajeId, simular: false, parametros: {} });
+      pollJob(job.id, (j, err) => {
+        if (err) { estado.textContent = 'Error: ' + err.message; return; }
+        estado.innerHTML = 'Job: ' + badgeEstado(j.estado) + (j.error ? ' — ' + j.error : '');
+        if (j.estado === 'completado') cargarPersonajes();
+      });
+    } catch (e) {
+      estado.textContent = e.message;
+    }
+    return;
+  }
   if (ev.target.matches('.form-vector')) {
     ev.preventDefault();
     const form = ev.target;

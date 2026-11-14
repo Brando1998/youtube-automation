@@ -83,7 +83,17 @@ class Personaje(Base):
     id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), primary_key=True, default=_uuid)
     tenant_id: Mapped[uuid.UUID] = mapped_column(ForeignKey("tenants.id"), index=True)
     nombre: Mapped[str] = mapped_column(String(200))
+    # Siempre poblado — para una instancia de familia (ver familia_ref abajo) se
+    # sintetiza server-side (p.ej. "familia/persona/<id>"), no es un path de
+    # biblioteca fija pero sigue sirviendo de id estable para el spec (ver
+    # pipeline_runner.preparar_catalogo_remotion).
     asset_ref: Mapped[str] = mapped_column(String(300))  # p.ej. "2d/personajes/lucia"
+    # Fase C (docs/PROJECT_ROADMAP.md) — si están pobladas, este personaje es una
+    # instancia de una familia paramétrica (library/familias/) en vez de un asset
+    # fijo de la biblioteca. Mutuamente mantenidos por el router (crear_personaje),
+    # no hay un constraint de DB que lo obligue.
+    familia_ref: Mapped[str | None] = mapped_column(String(300), nullable=True)
+    parametros: Mapped[dict | None] = mapped_column(JSON, nullable=True)
     color_subtitulo: Mapped[str | None] = mapped_column(String(10), nullable=True)
     estado: Mapped[str] = mapped_column(String(30), default="borrador")  # borrador|aprobado
     creado_en: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=_now)
@@ -109,6 +119,9 @@ class Objeto(Base):
     tenant_id: Mapped[uuid.UUID] = mapped_column(ForeignKey("tenants.id"), index=True)
     nombre: Mapped[str] = mapped_column(String(200))
     asset_ref: Mapped[str] = mapped_column(String(300))  # p.ej. "2d/objetos/farol"
+    # Ver el mismo par de columnas en Personaje — misma Fase C, mismo criterio.
+    familia_ref: Mapped[str | None] = mapped_column(String(300), nullable=True)
+    parametros: Mapped[dict | None] = mapped_column(JSON, nullable=True)
     estado: Mapped[str] = mapped_column(String(30), default="borrador")
     creado_en: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=_now)
 

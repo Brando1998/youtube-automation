@@ -1,0 +1,175 @@
+{% extends "base.html" %}
+{% block titulo %}Objetos{% endblock %}
+{% block contenido %}
+<h1>Objetos</h1>
+
+<div class="panel">
+  <h2 style="margin-top:0">Nuevo objeto</h2>
+  <form id="form-objeto">
+    <label>Nombre
+      <input type="text" name="nombre" required placeholder="corazon">
+    </label>
+    <label class="fila-check"><input type="radio" name="origen" value="biblioteca" checked> Biblioteca fija (ya tiene su .tsx)</label>
+    <label class="fila-check"><input type="radio" name="origen" value="familia"> Familia paramétrica (crear una instancia nueva)</label>
+    <div id="campos-origen-biblioteca">
+      <label>asset_ref
+        <input type="text" name="asset_ref" placeholder="2d/objetos/corazon">
+      </label>
+    </div>
+    <div id="campos-origen-familia" hidden>
+      <label>Familia
+        <select id="sel-familia-objeto" name="familia_ref"></select>
+      </label>
+      <div id="parametros-familia-objeto"></div>
+    </div>
+    <button type="submit">Crear objeto</button>
+    <p id="error-objeto" class="error" hidden></p>
+  </form>
+</div>
+
+<div class="aviso-simulacion">
+  Por defecto los jobs corren simulados (<code>--dry-run</code>), sin llamar a AWS ni gastar nada. Los
+  previews vectoriales (biblioteca fija o familia) son renders locales — nunca gastan AWS.
+</div>
+
+<div id="lista-objetos"></div>
+<p id="vacio-objetos" class="vacio" hidden>Todavía no hay objetos.</p>
+{% endblock %}
+{% block script %}
+<script>
+async function cargarObjetos() {
+  const objetos = await apiGet('/objetos');
+  const cont = document.getElementById('lista-objetos');
+  cont.innerHTML = '';
+  document.getElementById('vacio-objetos').hidden = objetos.length > 0;
+  for (const o of objetos) {
+    const div = document.createElement('div');
+    div.className = 'panel';
+    div.innerHTML = `
+      <div class="flex-entre">
+        <strong>${o.nombre}</strong>
+        ${badgeEstado(o.estado)}
+      </div>
+      <p class="vacio" style="padding:0.25rem 0">${o.asset_ref}${o.familia_ref ? ` — familia ${o.familia_ref} (${JSON.stringify(o.parametros)})` : ''}</p>
+      <details>
+        <summary>Generar preview vectorial (biblioteca de código, sin IA de imagen)</summary>
+        ${o.familia_ref ? `
+          <form class="form-vector-familia" data-objeto-id="${o.id}">
+            <button type="submit">Generar preview</button>
+          </form>
+        ` : `
+          <form class="form-vector" data-objeto-id="${o.id}">
+            <label>Archivo .tsx (relativo a apps/remotion-ilustrado, p.ej. library/objetos/corazon.tsx)
+              <input type="text" name="archivo" required placeholder="library/objetos/corazon.tsx">
+            </label>
+            <button type="submit">Generar preview</button>
+          </form>
+        `}
+      </details>
+      <p class="estado-job vacio" data-objeto-id="${o.id}" hidden></p>
+      <details>
+        <summary>Revisar y aprobar</summary>
+        <div class="panel-assets" data-objeto-id="${o.id}"></div>
+      </details>
+    `;
+    cont.appendChild(div);
+    const panelAssets = div.querySelector('.panel-assets');
+    apiGet(`/assets?objeto_id=${o.id}&pendientes=true`).then((assets) => renderPanelAssets(panelAssets, assets));
+  }
+}
+
+let familiasObjeto = [];
+async function cargarFamiliasObjeto() {
+  familiasObjeto = await apiGet('/familias?tipo=objeto');
+  const sel = document.getElementById('sel-familia-objeto');
+  sel.innerHTML = familiasObjeto.map((f) => `<option value="${f.assetRef}">${f.assetRef}</option>`).join('');
+  if (familiasObjeto.length) renderizarCamposParametros(document.getElementById('parametros-familia-objeto'), familiasObjeto[0].parametrosSchema);
+}
+document.getElementById('sel-familia-objeto').addEventListener('change', (ev) => {
+  const familia = familiasObjeto.find((f) => f.assetRef === ev.target.value);
+  if (familia) renderizarCamposParametros(document.getElementById('parametros-familia-objeto'), familia.parametrosSchema);
+});
+document.querySelectorAll('#form-objeto input[name="origen"]').forEach((input) => {
+  input.addEventListener('change', () => {
+    const esFamilia = document.querySelector('#form-objeto input[name="origen"]:checked').value === 'familia';
+    document.getElementById('campos-origen-biblioteca').hidden = esFamilia;
+    document.getElementById('campos-origen-familia').hidden = !esFamilia;
+  });
+});
+cargarFamiliasObjeto();
+
+document.getElementById('form-objeto').addEventListener('submit', async (ev) => {
+  ev.preventDefault();
+  const form = ev.target;
+  const errorEl = document.getElementById('error-objeto');
+  errorEl.hidden = true;
+  const esFamilia = form.origen.value === 'familia';
+  try {
+    const payload = { nombre: form.nombre.value };
+    if (esFamilia) {
+      const familia = familiasObjeto.find((f) => f.assetRef === form.familia_ref.value);
+      payload.familia_ref = form.familia_ref.value;
+      payload.parametros = leerParametros(form, familia.parametrosSchema);
+    } else {
+      payload.asset_ref = form.asset_ref.value;
+    }
+    await apiPost('/objetos', payload);
+    form.reset();
+    await cargarObjetos();
+  } catch (e) {
+    errorEl.textContent = e.message;
+    errorEl.hidden = false;
+  }
+});
+
+function estadoEl(objetoId) {
+  return document.querySelector(`.estado-job[data-objeto-id="${objetoId}"]`);
+}
+
+document.addEventListener('submit', async (ev) => {
+  if (ev.target.matches('.form-vector-familia')) {
+    ev.preventDefault();
+    const form = ev.target;
+    const objetoId = form.dataset.objetoId;
+    const estado = estadoEl(objetoId);
+    estado.hidden = false;
+    estado.textContent = 'Generando preview (remotion still, sin AWS)...';
+    try {
+      const job = await apiPost('/jobs', { tipo: 'vector_objeto', objeto_id: objetoId, simular: false, parametros: {} });
+      pollJob(job.id, (j, err) => {
+        if (err) { estado.textContent = 'Error: ' + err.message; return; }
+        estado.innerHTML = 'Job: ' + badgeEstado(j.estado) + (j.error ? ' — ' + j.error : '');
+        if (j.estado === 'completado') cargarObjetos();
+      });
+    } catch (e) {
+      estado.textContent = e.message;
+    }
+    return;
+  }
+  if (!ev.target.matches('.form-vector')) return;
+  ev.preventDefault();
+  const form = ev.target;
+  const objetoId = form.dataset.objetoId;
+  const estado = estadoEl(objetoId);
+  estado.hidden = false;
+  estado.textContent = 'Generando preview (remotion still, sin AWS)...';
+  try {
+    const job = await apiPost('/jobs', {
+      tipo: 'vector_objeto',
+      objeto_id: objetoId,
+      simular: false,
+      parametros: { archivo: form.archivo.value },
+    });
+    pollJob(job.id, (j, err) => {
+      if (err) { estado.textContent = 'Error: ' + err.message; return; }
+      estado.innerHTML = 'Job: ' + badgeEstado(j.estado) + (j.error ? ' — ' + j.error : '');
+      if (j.estado === 'completado') cargarObjetos();
+    });
+  } catch (e) {
+    estado.textContent = e.message;
+  }
+});
+
+cargarObjetos();
+</script>
+{% endblock %}

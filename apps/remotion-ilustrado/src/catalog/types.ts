@@ -82,6 +82,19 @@ export interface ObjetoDef extends ParteVisual {
   metadatos?: MetadatosActivo;
 }
 
+/** Describe UN parámetro que acepta una familia paramétrica (Fase C, docs/
+ * PROJECT_ROADMAP.md) — lo que el dashboard necesita para dibujar el formulario
+ * de creación sin hardcodear nada por familia nueva que se agregue. */
+export interface ParametroSchema {
+  tipo: "enum" | "color" | "texto";
+  /** Solo para tipo "enum" — opciones válidas, en el orden en que se muestran. */
+  opciones?: string[];
+  etiqueta: string;
+  porDefecto: string;
+}
+
+export type ParametrosSchema = Record<string, ParametroSchema>;
+
 /** Catálogo real completo, tal como lo escribe
  * apps/web/app/pipeline_runner.py::preparar_catalogo_remotion() antes de invocar
  * `remotion render` — ver EpisodioCompleto.tsx. */

@@ -15,7 +15,19 @@ import { Lightning } from "./components/Lightning";
 import { CharacterPuppet, type Segmento } from "./components/CharacterPuppet";
 import type { FondoDef, PersonajeDef } from "./catalog/types";
 import { buscarClip } from "./engine/animation/clips/registro";
-import { FONDOS_VECTOR, PERSONAJES_VECTOR } from "./library/registry";
+import { FAMILIAS_PERSONAJE_VECTOR, FONDOS_VECTOR, PERSONAJES_VECTOR } from "./library/registry";
+
+/** Una entrada de `personajesCatalogo` (--props) es o bien un `PersonajeDef` ya
+ * armado (biblioteca fija, viejo camino PNG/Stability — ver preparar_catalogo_
+ * remotion en pipeline_runner.py) o, desde la Fase C (familias paramétricas,
+ * docs/PROJECT_ROADMAP.md), una referencia a una familia + sus parámetros —
+ * ambos son JSON plano, viajan bien por --props; lo que NO viaja es la
+ * definición ya materializada de una familia (tendría funciones de render). */
+export type EntradaPersonajeCatalogo = PersonajeDef | { familiaRef: string; parametros: Record<string, unknown> };
+
+function esEntradaFamilia(entrada: EntradaPersonajeCatalogo): entrada is { familiaRef: string; parametros: Record<string, unknown> } {
+  return "familiaRef" in entrada;
+}
 
 // ---- Tipos mínimos que reflejan episode_spec/schema.json (subset usado aquí) ----
 // No se generan automáticamente del JSON Schema (sería una dependencia más para un
@@ -124,7 +136,7 @@ export function TomaIlustrada({
   escena: EscenaSpec;
   toma: TomaSpec;
   fondos: Record<string, FondoDef>;
-  personajesCatalogo: Record<string, PersonajeDef>;
+  personajesCatalogo: Record<string, EntradaPersonajeCatalogo>;
   lineasAudio: Record<string, AudioLinea>;
 }) {
   const { width: W, height: H } = useVideoConfig();
@@ -189,9 +201,17 @@ export function TomaIlustrada({
           const specPersonaje = spec.personajes.find((p) => p.id === pEscena.id);
           const refPersonaje = specPersonaje?.asset_ref;
           const personajeVector = refPersonaje ? PERSONAJES_VECTOR[refPersonaje] : undefined;
-          const def = refPersonaje
-            ? (personajesCatalogo[refPersonaje] ?? (personajeVector ? { id: refPersonaje, ...personajeVector } : undefined))
-            : undefined;
+          const entradaCatalogo = refPersonaje ? personajesCatalogo[refPersonaje] : undefined;
+          // Fase C: si la entrada es una familia paramétrica, materializar la
+          // definición llamando a la factory con sus parámetros — es lo único
+          // que NO podía viajar ya armado por --props (tendría funciones).
+          const def = entradaCatalogo
+            ? esEntradaFamilia(entradaCatalogo)
+              ? { id: refPersonaje!, ...FAMILIAS_PERSONAJE_VECTOR[entradaCatalogo.familiaRef]?.(entradaCatalogo.parametros) }
+              : entradaCatalogo
+            : personajeVector
+              ? { id: refPersonaje!, ...personajeVector }
+              : undefined;
           const lineaActiva = toma.lineas.find((l) => l.hablante === pEscena.id);
           const audio = lineaActiva ? lineasAudio[lineaActiva.id] : undefined;
           // id desconocido -> undefined -> el personaje queda en reposo, no es un

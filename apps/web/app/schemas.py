@@ -2,7 +2,7 @@ import uuid
 from datetime import datetime
 from typing import Any
 
-from pydantic import BaseModel, EmailStr, Field
+from pydantic import BaseModel, EmailStr, Field, model_validator
 
 
 class SignupRequest(BaseModel):
@@ -62,8 +62,20 @@ class EpisodioOut(BaseModel):
 
 class PersonajeCreate(BaseModel):
     nombre: str = Field(min_length=1, max_length=200)
-    asset_ref: str = Field(min_length=1, max_length=300)
+    # Uno de los dos (Fase C, docs/PROJECT_ROADMAP.md): asset_ref para un
+    # personaje de biblioteca fija, familia_ref+parametros para una instancia de
+    # familia paramétrica (library/familias/) — el router sintetiza su propio
+    # asset_ref estable en ese caso, por eso acá queda opcional.
+    asset_ref: str | None = Field(default=None, max_length=300)
+    familia_ref: str | None = Field(default=None, max_length=300)
+    parametros: dict[str, Any] | None = None
     color_subtitulo: str | None = None
+
+    @model_validator(mode="after")
+    def _uno_de_los_dos(self):
+        if bool(self.asset_ref) == bool(self.familia_ref):
+            raise ValueError("pasá exactamente uno de asset_ref o familia_ref (no los dos, no ninguno)")
+        return self
 
 
 class PersonajeOut(BaseModel):
@@ -71,6 +83,8 @@ class PersonajeOut(BaseModel):
     tenant_id: uuid.UUID
     nombre: str
     asset_ref: str
+    familia_ref: str | None
+    parametros: dict | None
     color_subtitulo: str | None
     estado: str
     creado_en: datetime
@@ -96,7 +110,15 @@ class FondoOut(BaseModel):
 
 class ObjetoCreate(BaseModel):
     nombre: str = Field(min_length=1, max_length=200)
-    asset_ref: str = Field(min_length=1, max_length=300)
+    asset_ref: str | None = Field(default=None, max_length=300)
+    familia_ref: str | None = Field(default=None, max_length=300)
+    parametros: dict[str, Any] | None = None
+
+    @model_validator(mode="after")
+    def _uno_de_los_dos(self):
+        if bool(self.asset_ref) == bool(self.familia_ref):
+            raise ValueError("pasá exactamente uno de asset_ref o familia_ref (no los dos, no ninguno)")
+        return self
 
 
 class ObjetoOut(BaseModel):
@@ -104,6 +126,8 @@ class ObjetoOut(BaseModel):
     tenant_id: uuid.UUID
     nombre: str
     asset_ref: str
+    familia_ref: str | None
+    parametros: dict | None
     estado: str
     creado_en: datetime
 

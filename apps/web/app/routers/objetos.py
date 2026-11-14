@@ -16,8 +16,15 @@ def crear_objeto(
     tenant_id: uuid.UUID = Depends(get_tenant_id),
     db: Session = Depends(get_db),
 ):
-    objeto = models.Objeto(tenant_id=tenant_id, **datos.model_dump())
-    db.add(objeto)
+    campos = datos.model_dump()
+    objeto = models.Objeto(tenant_id=tenant_id, **campos)
+    if datos.familia_ref:
+        # Mismo criterio que crear_personaje (Fase C) — ver ese comentario.
+        db.add(objeto)
+        db.flush()
+        objeto.asset_ref = f"familia/{datos.familia_ref.rsplit('/', 1)[-1]}/{objeto.id}"
+    else:
+        db.add(objeto)
     db.commit()
     db.refresh(objeto)
     return objeto

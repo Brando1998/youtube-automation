@@ -217,8 +217,16 @@ def preparar_catalogo_remotion(db: Session, episodio: models.Episodio) -> dict:
             raise JobError(f"el personaje '{asset_ref}' todavía no tiene partes aprobadas")
 
         if asset.tipo == "vector_personaje":
-            _verificar_asset_ref((asset.metadatos or {}).get("archivo", ""), asset_ref)
-            continue  # lo resuelve PERSONAJES_VECTOR del lado de Remotion, no viaja por --props
+            metadatos_asset = asset.metadatos or {}
+            if "familiaRef" in metadatos_asset:
+                # Fase C: instancia de familia paramétrica — a diferencia de un
+                # asset de biblioteca fija (que Remotion resuelve solo, no viaja
+                # por --props), acá SÍ hace falta mandar familiaRef+parametros
+                # (son JSON plano) para que EpisodeRenderer llame a la factory.
+                personajes_out[asset_ref] = {"familiaRef": metadatos_asset["familiaRef"], "parametros": metadatos_asset.get("parametros") or {}}
+            else:
+                _verificar_asset_ref(metadatos_asset.get("archivo", ""), asset_ref)
+            continue  # el caso de biblioteca fija lo resuelve PERSONAJES_VECTOR del lado de Remotion, no viaja por --props
 
         puppet = asset.metadatos or {}
         partes = puppet.get("partes", {})
@@ -272,6 +280,27 @@ def preparar_catalogo_remotion(db: Session, episodio: models.Episodio) -> dict:
         lineas_audio_out[linea_id] = meta
 
     return {"fondos": fondos_out, "personajesCatalogo": personajes_out, "lineasAudio": lineas_audio_out}
+
+
+def _comando_familia(tenant_dir: Path, entidad, tipo_familia: str, out_subcarpeta: str) -> tuple[list[str], Path]:
+    """Igual que _comando_vector pero para una instancia de familia paramétrica
+    (Fase C, docs/PROJECT_ROADMAP.md) — no hay ningún .tsx que verificar (la
+    familia ya es código probado), el preview sale de PreviewFamilia.tsx
+    llamando a la factory con los parámetros guardados en `entidad`."""
+    _regenerar_registry()
+    out_dir = tenant_dir / out_subcarpeta / str(entidad.id)
+    out_dir.mkdir(parents=True, exist_ok=True)
+    props_path = out_dir / "preview_props.json"
+    props_path.write_text(
+        json.dumps({"familia": entidad.familia_ref, "tipo": tipo_familia, "parametros": entidad.parametros or {}}, ensure_ascii=False),
+        encoding="utf-8",
+    )
+    png_path = out_dir / "preview.png"
+    cmd = [
+        "npx", "remotion", "still", "src/index.ts", "PreviewFamilia", str(png_path.resolve()),
+        f"--props={props_path.resolve()}",
+    ]
+    return cmd, png_path
 
 
 def _comando_vector(tenant_dir: Path, entidad, composicion: str, out_subcarpeta: str, archivo: str, asset_ref: str) -> tuple[list[str], Path]:
@@ -488,6 +517,16 @@ def _construir_comando(db: Session, job: models.GenerationJob) -> tuple[list[str
         entidad = db.get(Modelo, entidad_id)
         if entidad is None:
             raise JobError(f"{nombre_campo} no encontrado")
+
+        # Fase C (docs/PROJECT_ROADMAP.md): esta entidad puede venir de una
+        # familia paramétrica en vez de un .tsx fijo de la biblioteca — mismo job
+        # (vector_personaje/vector_objeto), comando distinto. vector_fondo no
+        # tiene familias todavía (fuera del alcance de la Fase C).
+        if getattr(entidad, "familia_ref", None):
+            tipo_familia = "personaje" if job.tipo == "vector_personaje" else "objeto"
+            cmd, png_path = _comando_familia(tenant_dir, entidad, tipo_familia, subcarpeta)
+            return cmd, REMOTION_APP_DIR, {campo_id: entidad_id, "png_path": png_path, "familia_ref": entidad.familia_ref, "parametros": entidad.parametros}
+
         archivo = params.get("archivo")  # ruta al .tsx, relativa a REMOTION_APP_DIR
         if not archivo:
             raise JobError(f"parametros.archivo (ruta al .tsx en library/) es requerido para {job.tipo}")
@@ -641,7 +680,25 @@ def _post_exito(db: Session, job: models.GenerationJob, contexto: dict, simular:
 
     elif job.tipo in ("vector_personaje", "vector_fondo", "vector_objeto"):
         png_path: Path = contexto["png_path"]
-        if png_path.exists():
+        if png_path.exists() and "familia_ref" in contexto:
+            # Fase C: instancia de familia paramétrica — no hay .tsx propio que
+            # referenciar, `ruta_archivo` guarda el id de la familia (no es un
+            # path real, pero la columna lo pide; documentado acá).
+            db.add(models.Asset(
+                tenant_id=job.tenant_id,
+                tipo=job.tipo,
+                ruta_archivo=f"familia:{contexto['familia_ref']}",
+                personaje_id=contexto.get("personaje_id"),
+                fondo_id=contexto.get("fondo_id"),
+                objeto_id=contexto.get("objeto_id"),
+                metadatos={
+                    "familiaRef": contexto["familia_ref"],
+                    "parametros": contexto["parametros"],
+                    "preview_png": str(png_path.relative_to(_tenant_dir(job.tenant_id))),
+                },
+                aprobado=False,
+            ))
+        elif png_path.exists():
             archivo: str = contexto["archivo"]
             ruta_tsx_abs = (REMOTION_APP_DIR / archivo).resolve()
             db.add(models.Asset(

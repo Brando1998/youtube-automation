@@ -70,6 +70,14 @@ def pagina_fondos(request: Request, db: Session = Depends(get_db)):
     return templates.TemplateResponse(request, "fondos_list.html", {"usuario": usuario})
 
 
+@router.get("/app/objetos")
+def pagina_objetos(request: Request, db: Session = Depends(get_db)):
+    usuario = usuario_o_redirect(request, db)
+    if isinstance(usuario, RedirectResponse):
+        return usuario
+    return templates.TemplateResponse(request, "objetos_list.html", {"usuario": usuario})
+
+
 @router.get("/app/jobs")
 def pagina_jobs(request: Request, db: Session = Depends(get_db)):
     usuario = usuario_o_redirect(request, db)
