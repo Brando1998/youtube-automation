@@ -17,17 +17,18 @@ def crear_personaje(
     db: Session = Depends(get_db),
 ):
     campos = datos.model_dump()
-    personaje = models.Personaje(tenant_id=tenant_id, **campos)
     if datos.familia_ref:
         # asset_ref de un personaje de familia (Fase C) se sintetiza acá, nunca
         # lo manda el cliente — sirve de id estable para el spec (ver
-        # pipeline_runner.preparar_catalogo_remotion), necesita el id real, por
-        # eso el flush antes de fijarlo.
-        db.add(personaje)
-        db.flush()
-        personaje.asset_ref = f"familia/{datos.familia_ref.rsplit('/', 1)[-1]}/{personaje.id}"
+        # pipeline_runner.preparar_catalogo_remotion). La columna es NOT NULL,
+        # así que el id hay que generarlo ACÁ (no esperar a un flush) para que
+        # el INSERT ya salga con asset_ref poblado.
+        nuevo_id = uuid.uuid4()
+        campos["asset_ref"] = f"familia/{datos.familia_ref.rsplit('/', 1)[-1]}/{nuevo_id}"
+        personaje = models.Personaje(id=nuevo_id, tenant_id=tenant_id, **campos)
     else:
-        db.add(personaje)
+        personaje = models.Personaje(tenant_id=tenant_id, **campos)
+    db.add(personaje)
     db.commit()
     db.refresh(personaje)
     return personaje
