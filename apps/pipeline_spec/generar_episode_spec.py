@@ -66,7 +66,7 @@ def cargar_schema():
         return json.load(f)
 
 
-def construir_system_prompt(schema, estilo, modo_voz, personajes_catalogo):
+def construir_system_prompt(schema, estilo, modo_voz, personajes_catalogo, fondos_catalogo=None):
     partes = [
         "Eres un asistente que convierte guiones en specs de episodio para un "
         "pipeline de animación automatizado. Tu única salida debe ser un documento "
@@ -84,6 +84,13 @@ def construir_system_prompt(schema, estilo, modo_voz, personajes_catalogo):
             "Catálogo de personajes ya existentes (usa estos ids/asset_ref tal cual, "
             "no inventes otros para los mismos personajes): "
             + json.dumps(personajes_catalogo, ensure_ascii=False)
+        )
+    if fondos_catalogo:
+        partes.append(
+            "Catálogo de fondos ya existentes (usa estos asset_ref tal cual en "
+            "escenas[].fondo — no inventes otros, un fondo inexistente rompe el "
+            "render más adelante): "
+            + json.dumps(fondos_catalogo, ensure_ascii=False)
         )
     if estilo == "ilustrado":
         partes.append(
@@ -145,11 +152,11 @@ def invocar_modelo(client, model_id, system_prompt, messages, max_tokens):
 
 
 def generar_episode_spec(guion_texto, episodio_id, estilo, modo_voz, personajes_catalogo,
-                          model_id, max_tokens, max_reintentos, dry_run=False):
+                          model_id, max_tokens, max_reintentos, dry_run=False, fondos_catalogo=None):
     import jsonschema
 
     schema = cargar_schema()
-    system_prompt = construir_system_prompt(schema, estilo, modo_voz, personajes_catalogo)
+    system_prompt = construir_system_prompt(schema, estilo, modo_voz, personajes_catalogo, fondos_catalogo)
     user_prompt = (
         f"Guion (id de episodio: {episodio_id}):\n\n{guion_texto}\n\n"
         "Convertí este guion en el episode_spec JSON correspondiente."
@@ -204,6 +211,7 @@ if __name__ == "__main__":
     parser.add_argument("--estilo", required=True, choices=["ilustrado", "3d"])
     parser.add_argument("--modo-voz", required=True, choices=["narrador", "dialogos", "mixto"])
     parser.add_argument("--personajes", default=None, help="JSON con el catálogo de personajes existentes (opcional)")
+    parser.add_argument("--fondos", default=None, help="JSON con el catálogo de fondos existentes (opcional)")
     parser.add_argument("--modelo", default=MODEL_ID_DEFAULT)
     parser.add_argument("--max-tokens", type=int, default=8000)
     parser.add_argument("--max-reintentos", type=int, default=3)
@@ -218,9 +226,15 @@ if __name__ == "__main__":
         with open(args.personajes, "r", encoding="utf-8") as f:
             personajes_catalogo = json.load(f)
 
+    fondos_catalogo = None
+    if args.fondos:
+        with open(args.fondos, "r", encoding="utf-8") as f:
+            fondos_catalogo = json.load(f)
+
     spec = generar_episode_spec(
         guion_texto, args.episodio_id, args.estilo, args.modo_voz, personajes_catalogo,
         args.modelo, args.max_tokens, args.max_reintentos, dry_run=args.dry_run,
+        fondos_catalogo=fondos_catalogo,
     )
     if spec is None:
         raise SystemExit(0)

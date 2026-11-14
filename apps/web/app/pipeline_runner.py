@@ -316,6 +316,27 @@ def _construir_comando(db: Session, job: models.GenerationJob) -> tuple[list[str
         guion_path = out_dir / "guion.txt"
         guion_path.write_text(episodio.guion_texto, encoding="utf-8")
         spec_path = out_dir / "spec.json"
+
+        # Catálogo REAL de este tenant — sin esto el modelo no tiene forma de saber
+        # qué asset_ref ya existen y puede inventar uno que no coincide con ningún
+        # Personaje/Fondo real, rompiendo preparar_catalogo_remotion más adelante
+        # (detectado probando el flujo completo de punta a punta, no era un hueco
+        # teórico). Mismo criterio que ya usa _construir_comando para otros jobs:
+        # consultar la DB del tenant, no asumir nada del lado del script de Bedrock.
+        personajes_catalogo = [
+            # "id" del spec (usado en hablante/personajes_en_escena) = último
+            # segmento del asset_ref (p.ej. "2d/personajes/lucia" -> "lucia") — no
+            # hay un slug propio en el modelo, y el nombre para mostrar puede tener
+            # tildes/espacios, no sirve como id.
+            {"id": p.asset_ref.rsplit("/", 1)[-1], "nombre": p.nombre, "asset_ref": p.asset_ref}
+            for p in db.query(models.Personaje).filter(models.Personaje.tenant_id == job.tenant_id).all()
+        ]
+        fondos_catalogo = [{"asset_ref": f.asset_ref} for f in db.query(models.Fondo).filter(models.Fondo.tenant_id == job.tenant_id).all()]
+        personajes_path = out_dir / "personajes_catalogo.json"
+        fondos_path = out_dir / "fondos_catalogo.json"
+        personajes_path.write_text(json.dumps(personajes_catalogo, ensure_ascii=False), encoding="utf-8")
+        fondos_path.write_text(json.dumps(fondos_catalogo, ensure_ascii=False), encoding="utf-8")
+
         cmd = [
             sys.executable, str(PIPELINE_SPEC / "generar_episode_spec.py"),
             "--guion", str(guion_path),
@@ -324,6 +345,10 @@ def _construir_comando(db: Session, job: models.GenerationJob) -> tuple[list[str
             "--estilo", episodio.estilo,
             "--modo-voz", episodio.modo_voz,
         ]
+        if personajes_catalogo:
+            cmd += ["--personajes", str(personajes_path)]
+        if fondos_catalogo:
+            cmd += ["--fondos", str(fondos_path)]
         if "modelo" in params:
             cmd += ["--modelo", params["modelo"]]
         if "max_tokens" in params:
