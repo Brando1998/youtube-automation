@@ -17,6 +17,13 @@ const svgProps = {
 };
 
 export const BOSQUE: Omit<FondoDef, "id"> = {
+  metadatos: {
+    id: "environment_forest_001",
+    version: 1,
+    tags: ["fondo", "bosque", "noche", "cabana", "exterior"],
+    capabilities: ["parallax", "humo", "luces"],
+    descripcion: "Bosque de noche con cabaña — primer fondo real de la biblioteca vectorial.",
+  },
   capas: [
     {
       id: "cielo",

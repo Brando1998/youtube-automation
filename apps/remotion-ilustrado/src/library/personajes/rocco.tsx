@@ -65,6 +65,13 @@ const COLA_BASE = {
 const COLA_PUNTA = { x: -138, y: -36, r: 9 };
 
 export const ROCCO: Omit<PersonajeDef, "id"> = {
+  metadatos: {
+    id: "character_dog_rocco_001",
+    version: 1,
+    tags: ["personaje", "animal", "cuadrupedo", "perro"],
+    capabilities: ["idle", "blink", "talk", "look", "tail-wag"],
+    descripcion: "Perro cuadrúpedo — referencia de familia anatómica cuadrúpedo.",
+  },
   colorPlaceholder: PELAJE,
   cabezaPivot: { x: CABEZA_X, y: CABEZA_Y },
   propPivot: { x: 50, y: -140 },

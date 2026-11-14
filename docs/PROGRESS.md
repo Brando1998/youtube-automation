@@ -4,8 +4,50 @@ Este archivo existe para que cualquier sesión nueva (sin el contexto de esta co
 pueda retomar el trabajo. El plan completo y las decisiones de arquitectura están en
 `docs/PLAN.md` — este archivo es solo el "dónde vamos" y el registro de decisiones.
 
-**Repo**: git inicializado localmente, rama de trabajo `dev` (nunca se hace commit/merge a
-`main` sin aprobación explícita del usuario, por instrucción global del usuario).
+**Repo**: git inicializado localmente. La rama de trabajo `dev` fue renombrada a `main`
+fuera de una sesión de Claude Code (confirmado con el usuario) — hoy se trabaja
+directamente sobre `main`; por instrucción global del usuario, nunca se hace commit/merge
+sin aprobación explícita de todas formas.
+
+## ✅ Motor de animación (rig/clips) conectado al pipeline de escenas existente — 2026-11-10
+
+Sesión aparte, enfocada en construir un motor de animación 2D nuevo
+(geometría/rig/clips/registro de activos) sobre `apps/remotion-ilustrado` —
+seguimiento día a día en `docs/PROJECT_ROADMAP.md` (documento nuevo, dedicado al
+**motor**; este archivo sigue siendo el histórico de **app/producción**, no se
+duplica contenido entre los dos). Lo que sí pertenece aquí, por tocar el
+pipeline de producción:
+
+- **Hallazgo**: al llegar a lo que `PROJECT_ROADMAP.md` tenía anotado como
+  "Fase 7/8/9 pendientes" (motor de escenas, Director IA, audio/sync), resultó
+  que ya existían — `episode_spec/schema.json` + `EpisodeRenderer.tsx` (motor
+  de escenas) y `apps/pipeline_spec/generar_episode_spec.py` (Director IA vía
+  Bedrock, Amazon Nova/Claude) ya estaban construidos y documentados más arriba
+  en este mismo archivo, solo que nunca ejecutados contra AWS real por la
+  **Pausa de costos AWS (2026-10-26)**, que sigue vigente — el usuario la
+  reconfirmó explícitamente al preguntarle cómo interpretar "terminar todo el
+  proyecto" dado este hallazgo.
+- **Conectado de verdad**: `episode_spec/schema.json` ahora acepta
+  `personajes_en_escena[].gesto` (`clip_id` + `inicio_frame`, opcional) —
+  `EpisodeRenderer.tsx` lo resuelve contra la biblioteca de clips nueva
+  (`engine/animation/clips/registro.ts`) y el personaje real lo reproduce en el
+  frame correcto. Verificado de punta a punta con un render real de
+  `PruebaEpisodeSpec` (toma completa: fondo, cámara, partículas, subtítulos) —
+  sin tocar código de personaje, solo 2 campos de JSON.
+  `generar_episode_spec.py` ahora también le pasa al modelo la lista de
+  `clip_id` reales disponibles (mismo patrón que ya usaba para
+  `personajes_catalogo`), verificado con `--dry-run` (0 llamadas a Bedrock).
+- **Bug encontrado de paso (preexistente, no introducido hoy)**:
+  `catalog/personajes.tsx` tenía una entrada placeholder-only de la vieja Fase
+  A4 (PNG/Stability) para `"2d/personajes/lucia"` que tapaba silenciosamente el
+  fallback a la Lucía real (biblioteca de código, con rig/cara/ropa) en
+  `PruebaEpisodeSpec`/`PruebaAudioReal` — ambas composiciones mostraban el
+  placeholder genérico de `CharacterPuppet` en vez del personaje real. Corregido
+  (esa entrada se vació); `PruebaAudioReal` en particular gana con esto, porque
+  ahora el lip-sync real tiene una boca real que mostrar.
+- Sigue sin gastarse nada de AWS en esta sesión — todo verificado con
+  `tsc`/`vitest`/`remotion still`/`--dry-run`, mismo criterio que el resto de
+  este archivo desde la pausa de costos.
 
 ## ✅ Segundo personaje de la biblioteca (Rocco, el perro) + estándares de composición — 2026-11-07
 

@@ -68,10 +68,24 @@ export function tangentesExternas(a: Circulo, b: Circulo) {
   const dx = b.x - a.x;
   const dy = b.y - a.y;
   const d = Math.hypot(dx, dy);
+  if (d === 0) {
+    throw new Error(`tangentesExternas: los círculos están en el mismo centro (${a.x},${a.y}) — no hay tangente externa definida.`);
+  }
+  if (Math.abs(a.r - b.r) >= d) {
+    throw new Error(
+      `tangentesExternas: geometría inválida — |a.r - b.r| (${Math.abs(a.r - b.r)}) debe ser menor que la distancia entre centros (${d}). ` +
+        `Un círculo contiene (o casi contiene) al otro, no hay tangente externa real. Círculos: a=(${a.x},${a.y},r=${a.r}) b=(${b.x},${b.y},r=${b.r}).`
+    );
+  }
   const theta = Math.atan2(dy, dx);
-  const alpha = Math.asin(Math.min(0.999, Math.max(-0.999, (a.r - b.r) / d)));
-  const a1 = theta + Math.PI / 2 + alpha;
-  const a2 = theta - Math.PI / 2 - alpha;
+  // Derivación correcta (verificada con producto punto radio·tangente = 0, ver
+  // primitives.test.ts): de cos(θ1-theta) = (a.r-b.r)/d se sigue θ1 = theta ±
+  // (90° - alpha), es decir signo MENOS en alpha — no "+alpha" como estaba antes.
+  // Con +alpha el error era pequeño para diferencias de radio chicas (por eso no
+  // se notó a simple vista en Rocco/Lucía) pero crece con la diferencia de radios.
+  const alpha = Math.asin((a.r - b.r) / d);
+  const a1 = theta + Math.PI / 2 - alpha;
+  const a2 = theta - Math.PI / 2 + alpha;
   return {
     aP1: { x: a.x + a.r * Math.cos(a1), y: a.y + a.r * Math.sin(a1) },
     aP2: { x: a.x + a.r * Math.cos(a2), y: a.y + a.r * Math.sin(a2) },
@@ -100,6 +114,42 @@ export function arcoCorto(c: Circulo, anguloInicioGrados: number, anguloFinGrado
   const sweep = delta >= 0 ? 1 : 0;
   const largeArcFlag = largo ? 1 : 0;
   return `A${c.r} ${c.r} 0 ${largeArcFlag} ${sweep} ${destino.x} ${destino.y}`;
+}
+
+/** ¿`angulo` cae dentro del arco CORTO (el que arcoCorto dibuja por defecto, sin
+ * `largo=true`) que va de `inicio` a `fin`? Mismo cálculo de `delta` que arcoCorto,
+ * para que esto y el arco que realmente se dibuja usen siempre la misma noción de
+ * "corto" — si se calcularan distinto, esta comprobación podría aprobar geometría
+ * que arcoCorto en realidad dibuja distinto. */
+function anguloDentroDeArcoCorto(angulo: number, inicio: number, fin: number): boolean {
+  let delta = fin - inicio;
+  delta = ((delta + 180) % 360) - 180;
+  if (delta <= -180) delta += 360;
+  let offset = angulo - inicio;
+  offset = ((offset + 180) % 360) - 180;
+  if (offset <= -180) offset += 360;
+  return delta >= 0 ? offset > 0 && offset < delta : offset < 0 && offset > delta;
+}
+
+/**
+ * Confirma que los 2 arcos cortos que se van a dibujar sobre el círculo del hombro
+ * (torso->manga-ida y manga-vuelta->cuello) NO se pisan entre sí — si un ángulo del
+ * otro par cae adentro del arco, la curva resultante se autointerseca (así se
+ * encontró el bug real de Lucía en la Fase 3, docs/PROJECT_ROADMAP.md: "manos"
+ * apareciendo junto al cuello en vez de en la muñeca). Antes solo se detectaba
+ * mirando el render; ahora falla con un error ANTES de construir el path.
+ */
+export function validarOrdenAngularHombro(anguloTorso: number, anguloTorsoLado: number, anguloCuelloLado: number, anguloCuello: number): void {
+  const cruceTorso = anguloDentroDeArcoCorto(anguloCuelloLado, anguloTorso, anguloTorsoLado) || anguloDentroDeArcoCorto(anguloCuello, anguloTorso, anguloTorsoLado);
+  const cruceCuello = anguloDentroDeArcoCorto(anguloTorso, anguloCuelloLado, anguloCuello) || anguloDentroDeArcoCorto(anguloTorsoLado, anguloCuelloLado, anguloCuello);
+  if (cruceTorso || cruceCuello) {
+    throw new Error(
+      `validarOrdenAngularHombro: geometría inválida — el arco torso->manga (${anguloTorso}°->${anguloTorsoLado}°) y el arco manga->cuello ` +
+        `(${anguloCuelloLado}°->${anguloCuello}°) se cruzan sobre el círculo del hombro. La curva resultante se autointersecaría. ` +
+        `Causa típica: anchoTorsoSuperiorMitad y anchoCuelloMitad demasiado parecidos, o el radio del hombro demasiado chico para la ` +
+        `distancia a la mano. Separa más esas medidas o agranda el radio del hombro.`
+    );
+  }
 }
 
 /** Punto sobre el borde de un círculo en un ángulo dado (grados). */
@@ -141,12 +191,18 @@ export function FormaAhusada({
   const dx = puntaX - baseX;
   const dy = puntaY - baseY;
   const d = Math.hypot(dx, dy);
+  if (d === 0 || Math.abs(baseR - puntaR) >= d) {
+    throw new Error(
+      `FormaAhusada: geometría inválida entre base (${baseX},${baseY},r=${baseR}) y punta (${puntaX},${puntaY},r=${puntaR}) — ` +
+        `la distancia entre centros (${d}) debe ser mayor que |baseR - puntaR| (${Math.abs(baseR - puntaR)}).`
+    );
+  }
   const theta = Math.atan2(dy, dx);
-  // Ángulo de las tangentes externas entre los 2 círculos — fórmula estándar
-  // (asin válido porque siempre forzamos baseR > puntaR y d > baseR - puntaR).
-  const alpha = Math.asin(Math.min(0.999, Math.max(-0.999, (baseR - puntaR) / d)));
-  const a1 = theta + Math.PI / 2 + alpha;
-  const a2 = theta - Math.PI / 2 - alpha;
+  // Mismo signo corregido que tangentesExternas (ver ese comentario y
+  // primitives.test.ts) — antes tenía "+alpha", lo correcto es "-alpha".
+  const alpha = Math.asin((baseR - puntaR) / d);
+  const a1 = theta + Math.PI / 2 - alpha;
+  const a2 = theta - Math.PI / 2 + alpha;
 
   const baseP1 = { x: baseX + baseR * Math.cos(a1), y: baseY + baseR * Math.sin(a1) };
   const baseP2 = { x: baseX + baseR * Math.cos(a2), y: baseY + baseR * Math.sin(a2) };
@@ -163,6 +219,174 @@ export function FormaAhusada({
   ].join(" ");
 
   return <path d={d_path} fill={color} {...contorno(trazo)} />;
+}
+
+/**
+ * Ángulo (grados) del punto sobre un círculo cuya coordenada X es `targetX` — para
+ * especificar geometría por MEDIDA (un ancho objetivo), no por ángulo adivinado
+ * (ver REGLAS.md y Fase 3 de docs/PROJECT_ROADMAP.md: "recibe medidas, no ángulos").
+ * `ladoInferior` elige cuál de las 2 soluciones (hay 2 puntos del círculo con esa X):
+ * `true` = el de mayor Y (hacia abajo, p.ej. hacia la cadera), `false` = el de menor
+ * Y (hacia arriba, p.ej. hacia el cuello).
+ */
+export function anguloParaX(c: Circulo, targetX: number, ladoInferior: boolean): number {
+  const rel = (targetX - c.x) / c.r;
+  if (rel < -1 || rel > 1) {
+    throw new Error(
+      `anguloParaX: el ancho objetivo (x=${targetX}) queda fuera del alcance del círculo (centro=${c.x}, radio=${c.r}, rango válido=[${c.x - c.r},${
+        c.x + c.r
+      }]). Aumenta el radio del hombro o acerca el ancho objetivo al centro.`
+    );
+  }
+  const baseGrados = (Math.acos(rel) * 180) / Math.PI; // siempre en [0,180]
+  return ladoInferior ? baseGrados : -baseGrados;
+}
+
+/**
+ * Medidas (no ángulos, no círculos con posición final) de un torso+brazos humanoide
+ * simétrico, lado derecho (x positivo) — se refleja automáticamente para el lado
+ * izquierdo. `hombro`/`mano` sí son `Circulo` (posición+radio), porque esos SON la
+ * medida real (dónde está el hombro, qué tan grande/redondeado, dónde cae la mano) —
+ * lo que NO se expone nunca son los ángulos de las tangentes, esos los resuelve esta
+ * función igual que hace FormaAhusada/tangentesExternas internamente.
+ */
+export interface MedidasTorsoHumanoide {
+  caderaY: number;
+  /** ancho de la cadera en su propia línea recta (las 2 esquinas de abajo del
+   * torso) — NO es lo mismo que dónde el costado del torso se encuentra con el
+   * círculo del hombro (ver anchoTorsoSuperiorMitad): un torso real suele ensanchar
+   * un poco hacia el hombro, no sube recto. Conflacionar ambas medidas en una sola
+   * (como la primera versión de esta función) puede hacer que el ángulo resuelto
+   * quede tan cerca del punto de tangencia del brazo que la curva se autointerseca
+   * (ver docs/PROGRESS.md, Fase 3 — así se detectó este bug con Lucía).
+   */
+  anchoCaderaMitad: number;
+  /** mitad del ancho del torso justo donde empieza a curvar hacia el hombro —
+   * punto de destino real sobre el círculo del hombro (distinto de anchoCaderaMitad
+   * salvo que el torso sea perfectamente recto de cadera a hombro). */
+  anchoTorsoSuperiorMitad: number;
+  /** mitad del ancho del cuello/escote — dónde termina el hombro y empieza la línea
+   * recta que cruza al otro lado. */
+  anchoCuelloMitad: number;
+  /** centro+radio del "blob" del hombro, lado derecho (x debe ser > 0). */
+  hombro: Circulo;
+  /** centro+radio de la mano, lado derecho (x debe ser > 0). */
+  mano: Circulo;
+}
+
+/**
+ * Construye el `d` de un torso+brazos humanoide como UNA sola curva cerrada
+ * (REGLAS.md R1/R2, investigación Open Peeps/Avataaars en docs/PROGRESS.md) —
+ * generalización de `TorsoYBrazos` en `lucia.tsx` (Fase 3 del plan maestro,
+ * docs/PROJECT_ROADMAP.md): esa versión tenía las medidas escritas a mano para UN
+ * personaje; esta recibe medidas como parámetro, cualquier proporción (delgado,
+ * robusto, etc.) usa la misma función. Devuelve el string `d` — no un `<path>` ya
+ * armado — para que cada personaje decida su propio relleno (color sólido,
+ * degradado, lo que sea), igual de simple de envolver que escribir `<path d={...}
+ * fill="..." />`.
+ */
+export function construirTorsoYBrazos(m: MedidasTorsoHumanoide): string {
+  const datosLado = (signo: 1 | -1) => {
+    const hombro: Circulo = { x: signo * m.hombro.x, y: m.hombro.y, r: m.hombro.r };
+    const mano: Circulo = { x: signo * m.mano.x, y: m.mano.y, r: m.mano.r };
+    const anguloTorso = anguloParaX(hombro, signo * m.anchoTorsoSuperiorMitad, true);
+    const anguloCuello = anguloParaX(hombro, signo * m.anchoCuelloMitad, false);
+    const pTorso = puntoEnCirculo(hombro, anguloTorso);
+    const pCuello = puntoEnCirculo(hombro, anguloCuello);
+    const tan = tangentesExternas(hombro, mano);
+    // mismo razonamiento que la versión específica de Lucía: para signo=-1, aP1
+    // (que usa +90° antes de restar alpha) cae del lado "abajo/afuera" (torso);
+    // para signo=1 se invierte. Ver tangentesExternas para la derivación del signo.
+    const [tangTorsoLado, tangCuelloLado, anguloTorsoLado, anguloCuelloLado] =
+      signo === -1 ? [tan.aP1, tan.aP2, tan.anguloA1, tan.anguloA2] : [tan.aP2, tan.aP1, tan.anguloA2, tan.anguloA1];
+    const [tangTorsoMano, tangCuelloMano] = signo === -1 ? [tan.bP1, tan.bP2] : [tan.bP2, tan.bP1];
+    const [anguloManoTorso, anguloManoCuello] = signo === -1 ? [tan.anguloA1, tan.anguloA2] : [tan.anguloA2, tan.anguloA1];
+    validarOrdenAngularHombro(anguloTorso, anguloTorsoLado, anguloCuelloLado, anguloCuello);
+    return {
+      hombro,
+      mano,
+      pTorso,
+      pCuello,
+      anguloTorso,
+      anguloCuello,
+      tangTorsoLado,
+      tangCuelloLado,
+      anguloTorsoLado,
+      anguloCuelloLado,
+      tangTorsoMano,
+      tangCuelloMano,
+      anguloManoTorso,
+      anguloManoCuello,
+    };
+  };
+
+  const izq = datosLado(-1);
+  const der = datosLado(1);
+
+  return [
+    `M${-m.anchoCaderaMitad} ${m.caderaY}`,
+    `L${izq.pTorso.x} ${izq.pTorso.y}`,
+    arcoCorto(izq.hombro, izq.anguloTorso, izq.anguloTorsoLado, izq.tangTorsoLado),
+    `L${izq.tangTorsoMano.x} ${izq.tangTorsoMano.y}`,
+    arcoCorto(izq.mano, izq.anguloManoTorso, izq.anguloManoCuello, izq.tangCuelloMano, true),
+    `L${izq.tangCuelloLado.x} ${izq.tangCuelloLado.y}`,
+    arcoCorto(izq.hombro, izq.anguloCuelloLado, izq.anguloCuello, izq.pCuello),
+    `L${der.pCuello.x} ${der.pCuello.y}`,
+    arcoCorto(der.hombro, der.anguloCuello, der.anguloCuelloLado, der.tangCuelloLado),
+    `L${der.tangCuelloMano.x} ${der.tangCuelloMano.y}`,
+    arcoCorto(der.mano, der.anguloManoCuello, der.anguloManoTorso, der.tangTorsoMano, true),
+    `L${der.tangTorsoLado.x} ${der.tangTorsoLado.y}`,
+    arcoCorto(der.hombro, der.anguloTorsoLado, der.anguloTorso, der.pTorso),
+    `L${m.anchoCaderaMitad} ${m.caderaY}`,
+    "Z",
+  ].join(" ");
+}
+
+/**
+ * Medidas de un torso SOLO (sin brazos) — Fase 4 (rigging, docs/PROJECT_ROADMAP.md):
+ * cuando los brazos son huesos independientes (`engine/rig`), el torso ya no
+ * necesita fundirse con ellos en una sola curva — es más simple que
+ * `MedidasTorsoHumanoide` porque no hay manga que tangentear contra una mano.
+ */
+export interface MedidasTorso {
+  caderaY: number;
+  anchoCaderaMitad: number;
+  anchoTorsoSuperiorMitad: number;
+  anchoCuelloMitad: number;
+  /** centro+radio del hombro, lado derecho — mismo círculo que debe usar el hueso
+   * del brazo correspondiente (ver engine/rig) para que el "cap" de la
+   * articulación quede exactamente donde el torso redondea hacia el hombro. */
+  hombro: Circulo;
+}
+
+/** Construye el `d` de un torso (sin brazos) como una sola curva cerrada — ver
+ * `construirTorsoYBrazos` para el porqué de la técnica. Los brazos se dibujan
+ * aparte como huesos (`engine/rig/fk.ts` + `FormaAhusada`), cada uno con un "cap"
+ * circular en el hombro que tapa la unión con este torso. */
+export function construirTorso(m: MedidasTorso): string {
+  const lado = (signo: 1 | -1) => {
+    const hombro: Circulo = { x: signo * m.hombro.x, y: m.hombro.y, r: m.hombro.r };
+    const anguloTorso = anguloParaX(hombro, signo * m.anchoTorsoSuperiorMitad, true);
+    const anguloCuello = anguloParaX(hombro, signo * m.anchoCuelloMitad, false);
+    return {
+      hombro,
+      anguloTorso,
+      anguloCuello,
+      pTorso: puntoEnCirculo(hombro, anguloTorso),
+      pCuello: puntoEnCirculo(hombro, anguloCuello),
+    };
+  };
+  const izq = lado(-1);
+  const der = lado(1);
+  return [
+    `M${-m.anchoCaderaMitad} ${m.caderaY}`,
+    `L${izq.pTorso.x} ${izq.pTorso.y}`,
+    arcoCorto(izq.hombro, izq.anguloTorso, izq.anguloCuello, izq.pCuello),
+    `L${der.pCuello.x} ${der.pCuello.y}`,
+    arcoCorto(der.hombro, der.anguloCuello, der.anguloTorso, der.pTorso),
+    `L${m.anchoCaderaMitad} ${m.caderaY}`,
+    "Z",
+  ].join(" ");
 }
 
 /**

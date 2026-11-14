@@ -13,8 +13,13 @@
  * (geometría exacta de 2 círculos), nunca una curva Bézier adivinada — es la misma
  * pieza ya validada con la cola de Rocco, reutilizada 4 veces aquí.
  */
+import type { ContextoAnimacion } from "../../components/CharacterPuppet";
 import type { PersonajeDef } from "../../catalog/types";
-import { arcoCorto, Circulo, FormaAhusada, puntoEnCirculo, tangentesExternas } from "../primitives";
+import { combinarClips, evaluarClip } from "../../engine/animation/evaluator";
+import type { ClipAnimacion } from "../../engine/animation/types";
+import { evaluarFK } from "../../engine/rig/fk";
+import type { Articulacion } from "../../engine/rig/types";
+import { construirTorso, FormaAhusada } from "../primitives";
 import { PALETA } from "../styleTokens";
 
 export const ASSET_REF = "2d/personajes/lucia";
@@ -55,11 +60,18 @@ function Degradados() {
         <stop offset="0%" stopColor={PELO_CLARO} />
         <stop offset="100%" stopColor={PELO_OSCURO} />
       </radialGradient>
-      <linearGradient id="lucia-hoodie" x1="0" y1="0" x2="0" y2="1">
+      {/* gradientUnits="userSpaceOnUse" a propósito (no el default
+          objectBoundingBox): desde que el brazo son piezas separadas (hombro +
+          antebrazo + torso, Fase 4), cada forma con el default calcula el
+          degradado relativo a SU PROPIA caja — se nota como un anillo oscuro en
+          cada articulación porque las piezas no coinciden entre sí. Con
+          coordenadas absolutas del personaje, todas las piezas "hoodie" muestrean
+          el mismo degradado continuo, sin importar cuántas formas separadas sean. */}
+      <linearGradient id="lucia-hoodie" gradientUnits="userSpaceOnUse" x1="0" y1={HOMBRO_Y} x2="0" y2={CADERA_Y}>
         <stop offset="0%" stopColor={HOODIE_CLARO} />
         <stop offset="100%" stopColor={HOODIE_OSCURO} />
       </linearGradient>
-      <linearGradient id="lucia-jeans" x1="0" y1="0" x2="0" y2="1">
+      <linearGradient id="lucia-jeans" gradientUnits="userSpaceOnUse" x1="0" y1={CADERA_Y} x2="0" y2={TOBILLO_Y}>
         <stop offset="0%" stopColor={JEANS_CLARO} />
         <stop offset="100%" stopColor={JEANS_OSCURO} />
       </linearGradient>
@@ -67,115 +79,214 @@ function Degradados() {
   );
 }
 
-function Pierna({ signo }: { signo: 1 | -1 }) {
-  const cadera = { x: signo * 20, y: CADERA_Y, r: 19 };
-  const tobillo = { x: signo * 22, y: TOBILLO_Y, r: 13 };
+// Pierna = 2 huesos reales (cadera->rodilla, rodilla->tobillo), mismo patrón que
+// Brazo (Fase 4, docs/PROJECT_ROADMAP.md). No hay "cap" en la cadera: ahí la
+// pierna (jeans) se encuentra con el borde PLANO del torso (hoodie) — es un
+// cambio de color (cintura), no una fusión de la misma pieza, así que no hace
+// falta taparlo (ya funcionaba bien como una sola forma antes de separar la
+// rodilla). La rodilla sí necesita el cap sin contorno, igual que el codo.
+const PIERNA_CADERA = { x: 20, y: CADERA_Y, r: 19 };
+const PIERNA_TOBILLO = { x: 22, y: TOBILLO_Y, r: 13 };
+const PIERNA_RODILLA_RADIO = 16;
+const PIERNA_LONGITUD_TOTAL = Math.hypot(PIERNA_TOBILLO.x - PIERNA_CADERA.x, PIERNA_TOBILLO.y - PIERNA_CADERA.y);
+const PIERNA_LONGITUD_MUSLO = 40;
+const PIERNA_LONGITUD_PANTORRILLA = PIERNA_LONGITUD_TOTAL - PIERNA_LONGITUD_MUSLO;
+const PIERNA_ANGULO_REPOSO = (Math.atan2(PIERNA_TOBILLO.y - PIERNA_CADERA.y, PIERNA_TOBILLO.x - PIERNA_CADERA.x) * 180) / Math.PI;
+
+function Pierna({
+  signo,
+  ctx,
+  anguloCadera,
+  anguloRodilla,
+  clips,
+}: {
+  signo: 1 | -1;
+  ctx: ContextoAnimacion;
+  anguloCadera?: number;
+  anguloRodilla?: number;
+  /** capas de clip de engine/animation (Fase 5) — ver Brazo. Para alternar piernas
+   * en un ciclo de caminar, pasar el mismo clip con un desfase de medio ciclo (ver
+   * CLIP_CAMINAR) — eso lo decide quien arma la escena, no esta función. */
+  clips?: ClipAnimacion[];
+}) {
+  const huesos: Articulacion[] = [
+    {
+      id: "muslo",
+      longitud: PIERNA_LONGITUD_MUSLO,
+      // mismo truco de reflejo que el brazo: para signo=-1, 180-ángulo.
+      anguloReposo: signo === 1 ? PIERNA_ANGULO_REPOSO : 180 - PIERNA_ANGULO_REPOSO,
+      radioProximal: PIERNA_CADERA.r,
+      radioDistal: PIERNA_RODILLA_RADIO,
+    },
+    {
+      id: "pantorrilla",
+      padreId: "muslo",
+      longitud: PIERNA_LONGITUD_PANTORRILLA,
+      anguloReposo: 0,
+      radioProximal: PIERNA_RODILLA_RADIO,
+      radioDistal: PIERNA_TOBILLO.r,
+    },
+  ];
+  const raiz = { x: signo * PIERNA_CADERA.x, y: PIERNA_CADERA.y, anguloMundo: 0 };
+  const [huesoMuslo, huesoPantorrilla] = huesos;
+
+  // Balanceo de reposo sutil (desplazamiento de peso), mismo criterio que el
+  // brazo: apagado si ctx.animar=false, y si se pasa una pose explícita o un clip
+  // esa gana sin sumarle temblor.
+  const clipsAngulos = angulosDeClips(clips, ctx.frame, signo);
+  const faseBalanceo = signo === 1 ? 0 : Math.PI;
+  const balanceoCadera = ctx.animar && clipsAngulos?.muslo === undefined && anguloCadera === undefined ? Math.sin(ctx.frame * 0.04 + faseBalanceo) * 1.5 : 0;
+
+  const angulosLocales: Record<string, number> = {
+    muslo: (clipsAngulos?.muslo ?? anguloCadera ?? huesoMuslo.anguloReposo) + balanceoCadera,
+    pantorrilla: clipsAngulos?.pantorrilla ?? anguloRodilla ?? huesoPantorrilla.anguloReposo,
+  };
+  const pose = evaluarFK(huesos, raiz, angulosLocales);
+  const muslo = pose.muslo;
+  const pantorrilla = pose.pantorrilla;
+
   return (
-    <>
-      <FormaAhusada baseX={cadera.x} baseY={cadera.y} baseR={cadera.r} puntaX={tobillo.x} puntaY={tobillo.y} puntaR={tobillo.r} color="url(#lucia-jeans)" />
-      <ellipse cx={tobillo.x} cy={tobillo.y + 6} rx={17} ry={9} fill={ZAPATO} stroke={CONTORNO} strokeWidth={2.5} />
-    </>
+    <g>
+      <FormaAhusada baseX={muslo.proximal.x} baseY={muslo.proximal.y} baseR={huesoMuslo.radioProximal} puntaX={muslo.distal.x} puntaY={muslo.distal.y} puntaR={huesoMuslo.radioDistal} color="url(#lucia-jeans)" />
+      <FormaAhusada baseX={pantorrilla.proximal.x} baseY={pantorrilla.proximal.y} baseR={huesoPantorrilla.radioProximal} puntaX={pantorrilla.distal.x} puntaY={pantorrilla.distal.y} puntaR={huesoPantorrilla.radioDistal} color="url(#lucia-jeans)" />
+      <ellipse cx={pantorrilla.distal.x} cy={pantorrilla.distal.y + 6} rx={17} ry={9} fill={ZAPATO} stroke={CONTORNO} strokeWidth={2.5} />
+      {/* cap de la rodilla: sin contorno propio (mismo criterio que el codo). Radio
+          +3 sobre el radio real del hueso a propósito — un círculo perfecto no
+          cubre del todo el borde redondeado que arma FormaAhusada en la punta de
+          cada hueso (son 2 construcciones geométricas distintas, no coinciden
+          pixel a pixel aunque el radio nominal sea igual); un poco más grande
+          garantiza que tape el contorno de los 2 huesos sin dejar un arco asomando. */}
+      <circle cx={pantorrilla.proximal.x} cy={pantorrilla.proximal.y} r={huesoPantorrilla.radioProximal + 3} fill="url(#lucia-jeans)" />
+    </g>
   );
 }
 
-// Hombro = círculo grande (la esquina redondeada del torso Y el punto donde nace
-// la manga, a la vez). Mano = círculo chico al final del brazo. anguloTorso/
-// anguloCuello son puntos FIJOS sobre el círculo del hombro (no tangentes — no hay
-// un segundo círculo del lado del torso/cuello, son solo el borde recto del torso y
-// la línea del cuello) que delimitan dónde termina el "lado del torso" y empieza la
-// "manga" en el recorrido de un solo path. Para signo=1 son el espejo de signo=-1
-// (reflejo en x: ángulo → 180-ángulo).
-// Círculo chico y centrado en la altura del hombro (antes: r=26 centrado en -172
-// ocupaba más de la mitad del alto del torso en su propia transición, sin dejar
-// tramo recto a ancho completo entre la cadera y el hombro — por eso salía cono).
-const HOMBRO = (signo: 1 | -1): Circulo => ({ x: signo * 34, y: -180, r: 18 });
-const MANO = (signo: 1 | -1): Circulo => ({ x: signo * 57, y: -99, r: 11 });
-const ANGULO_TORSO = (signo: 1 | -1) => (signo === -1 ? 150 : 30);
-const ANGULO_CUELLO = (signo: 1 | -1) => (signo === -1 ? 250 : 290);
+// Medidas del torso SOLO (Fase 4, docs/PROJECT_ROADMAP.md: el brazo ya no se funde
+// con el torso en una sola curva — es un hueso aparte, ver BRAZO_HUESO más abajo —
+// así se puede animar sin arriesgar auto-intersección en cada cuadro).
+const MEDIDAS_TORSO = {
+  caderaY: CADERA_Y,
+  anchoCaderaMitad: 38,
+  anchoTorsoSuperiorMitad: 49.6,
+  anchoCuelloMitad: 22,
+  hombro: { x: 34, y: -180, r: 18 },
+};
 
-/**
- * Torso + ambos brazos como UNA sola curva cerrada (no piezas separadas que fusionar
- * — ver REGLAS.md y la investigación de Open Peeps/Avataaars en docs/PROGRESS.md:
- * así es como un ilustrador real evita costuras, construido aquí con círculos y
- * tangentes exactas en vez de Bézier adivinado). Recorrido: cadera-izq → lado del
- * torso → hombro-izq → manga-izq (ida) → mano-izq → manga-izq (vuelta) → hombro-izq
- * → cuello-izq → [línea del cuello] → cuello-der → hombro-der → manga-der (ida) →
- * mano-der → manga-der (vuelta) → hombro-der → lado del torso → cadera-der → cierre
- * por abajo.
- */
-/** Todos los puntos/datos de un lado, siempre calculados en el sentido cadera→cuello
- * ("ida") — el lado derecho se recorre en el path al revés (cuello→cadera), lo que
- * solo exige invertir los sweep-flags de sus arcos (misma curva, sentido contrario),
- * no recalcular nada. */
-function datosLado(signo: 1 | -1) {
-  const hombro = HOMBRO(signo);
-  const mano = MANO(signo);
-  const anguloTorso = ANGULO_TORSO(signo);
-  const anguloCuello = ANGULO_CUELLO(signo);
-  const pTorso = puntoEnCirculo(hombro, anguloTorso);
-  const pCuello = puntoEnCirculo(hombro, anguloCuello);
-  const tan = tangentesExternas(hombro, mano);
-  // aP1/aP2 están a ±90°+alpha de la dirección hombro→mano — para signo=-1 esa
-  // dirección apunta hacia abajo-afuera, así que aP1 (que suma +90°) cae del lado de
-  // "afuera/abajo" (más cerca de pTorso) y aP2 del lado "adentro/arriba" (más cerca
-  // de pCuello). Para signo=1 se invierte. El ángulo de un punto en el círculo
-  // "mano" (bP1/bP2) es el MISMO ángulo que su par en "hombro" (son tangentes
-  // paralelas), por eso se reutiliza para el arco alrededor de la mano.
-  const [tangTorsoLado, tangCuelloLado, anguloTorsoLado, anguloCuelloLado] =
-    signo === -1 ? [tan.aP1, tan.aP2, tan.anguloA1, tan.anguloA2] : [tan.aP2, tan.aP1, tan.anguloA2, tan.anguloA1];
-  const [tangTorsoMano, tangCuelloMano] = signo === -1 ? [tan.bP1, tan.bP2] : [tan.bP2, tan.bP1];
-  const [anguloManoTorso, anguloManoCuello] = signo === -1 ? [tan.anguloA1, tan.anguloA2] : [tan.anguloA2, tan.anguloA1];
-  return {
-    hombro,
-    mano,
-    pTorso,
-    pCuello,
-    anguloTorso,
-    anguloCuello,
-    tangTorsoLado,
-    tangCuelloLado,
-    anguloTorsoLado,
-    anguloCuelloLado,
-    tangTorsoMano,
-    tangCuelloMano,
-    anguloManoTorso,
-    anguloManoCuello,
-  };
-}
-
-function TorsoYBrazos() {
-  const izq = datosLado(-1);
-  const der = datosLado(1);
-
-  const d = [
-    // --- lado izquierdo, sentido cadera -> cuello ---
-    `M${-38} ${CADERA_Y}`,
-    `L${izq.pTorso.x} ${izq.pTorso.y}`,
-    arcoCorto(izq.hombro, izq.anguloTorso, izq.anguloTorsoLado, izq.tangTorsoLado),
-    `L${izq.tangTorsoMano.x} ${izq.tangTorsoMano.y}`,
-    arcoCorto(izq.mano, izq.anguloManoTorso, izq.anguloManoCuello, izq.tangCuelloMano, true),
-    `L${izq.tangCuelloLado.x} ${izq.tangCuelloLado.y}`,
-    arcoCorto(izq.hombro, izq.anguloCuelloLado, izq.anguloCuello, izq.pCuello),
-    // --- línea del cuello, izq -> der ---
-    `L${der.pCuello.x} ${der.pCuello.y}`,
-    // --- lado derecho, sentido INVERSO (cuello -> cadera) — mismos ángulos que
-    // datosLado(1), solo invertidos como inicio/fin; arcoCorto calcula los flags
-    // correctos desde la diferencia angular real, no hace falta adivinar nada ---
-    arcoCorto(der.hombro, der.anguloCuello, der.anguloCuelloLado, der.tangCuelloLado),
-    `L${der.tangCuelloMano.x} ${der.tangCuelloMano.y}`,
-    arcoCorto(der.mano, der.anguloManoCuello, der.anguloManoTorso, der.tangTorsoMano, true),
-    `L${der.tangTorsoLado.x} ${der.tangTorsoLado.y}`,
-    arcoCorto(der.hombro, der.anguloTorsoLado, der.anguloTorso, der.pTorso),
-    `L${38} ${CADERA_Y}`,
-    "Z",
-  ].join(" ");
-
+function Torso() {
+  const d = construirTorso(MEDIDAS_TORSO);
   return <path d={d} fill="url(#lucia-hoodie)" stroke={CONTORNO} strokeWidth={3} strokeLinejoin="round" />;
 }
 
-function Mano({ signo }: { signo: 1 | -1 }) {
-  const mano = MANO(signo);
-  return <circle cx={mano.x} cy={mano.y + 2} r={10} fill="url(#lucia-piel)" stroke={CONTORNO} strokeWidth={2.5} />;
+// El brazo son 2 huesos reales (engine/rig): brazo (hombro->codo) y antebrazo
+// (codo->muñeca). Cada articulación tiene su propio "cap" (mismo truco que el
+// hombro con el torso) para que la unión se vea limpia sin importar el ángulo.
+// Longitudes/ángulo de reposo calculados para que la postura por defecto quede
+// IGUAL a cuando era un solo hueso (mano en x=57,y=-99 del lado derecho, ángulo de
+// reposo del antebrazo = 0 = continúa recto) — ver docs/PROJECT_ROADMAP.md Fase 4.
+const BRAZO_RADIO_DISTAL = 11;
+const BRAZO_RADIO_CODO = 14;
+const BRAZO_LONGITUD_TOTAL = Math.hypot(57 - MEDIDAS_TORSO.hombro.x, -99 - MEDIDAS_TORSO.hombro.y);
+const BRAZO_LONGITUD_SUPERIOR = 45;
+const BRAZO_LONGITUD_INFERIOR = BRAZO_LONGITUD_TOTAL - BRAZO_LONGITUD_SUPERIOR;
+const BRAZO_ANGULO_REPOSO_DER = (Math.atan2(-99 - MEDIDAS_TORSO.hombro.y, 57 - MEDIDAS_TORSO.hombro.x) * 180) / Math.PI;
+
+/** Ángulos de una o más capas de clip (Fase 5, engine/animation) ya combinadas
+ * (`combinarClips` — el último de la lista gana por hueso si 2 capas tocan el
+ * mismo, sección 8.3 del plan maestro), reflejadas para el lado izquierdo con el
+ * mismo criterio que `anguloReposo` (`180 - angulo`). Compartido entre Brazo y
+ * Pierna. `undefined` si no hay clips (así el llamador cae a su propio ángulo de
+ * reposo/pose) — por hueso individual puede seguir siendo `undefined` si NINGUNA
+ * capa lo anima. */
+function angulosDeClips(clips: ClipAnimacion[] | undefined, frame: number, signo: 1 | -1): Record<string, number> | undefined {
+  if (!clips || clips.length === 0) return undefined;
+  const combinado = combinarClips(...clips.map((c) => evaluarClip(c, frame)));
+  if (signo === 1) return combinado;
+  const reflejado: Record<string, number> = {};
+  for (const huesoId of Object.keys(combinado)) reflejado[huesoId] = 180 - combinado[huesoId];
+  return reflejado;
+}
+
+function Brazo({
+  signo,
+  anguloHombro,
+  anguloCodo,
+  clips,
+  ctx,
+}: {
+  signo: 1 | -1;
+  anguloHombro?: number;
+  anguloCodo?: number;
+  /** capas de clip de engine/animation (Fase 5), combinadas con `combinarClips`
+   * (el último de la lista gana por hueso si 2 capas tocan el mismo) — si alguna
+   * anima un hueso, gana sobre anguloHombro/anguloCodo y sobre el balanceo de
+   * reposo para ESE hueso puntual (no es todo o nada: si una capa solo toca
+   * "antebrazo", "brazo" sigue cayendo a su pose/balanceo normal). */
+  clips?: ClipAnimacion[];
+  /** animar/frame oficiales de CharacterPuppet (ver ContextoAnimacion) — antes
+   * esta función llamaba a useCurrentFrame() por su cuenta y nunca respetaba
+   * `animar`; ahora usa el mismo canal que breath/blink/look. */
+  ctx: ContextoAnimacion;
+}) {
+  const huesos: Articulacion[] = [
+    {
+      id: "brazo",
+      longitud: BRAZO_LONGITUD_SUPERIOR,
+      anguloReposo: signo === 1 ? BRAZO_ANGULO_REPOSO_DER : 180 - BRAZO_ANGULO_REPOSO_DER,
+      radioProximal: MEDIDAS_TORSO.hombro.r,
+      radioDistal: BRAZO_RADIO_CODO,
+    },
+    {
+      id: "antebrazo",
+      padreId: "brazo",
+      longitud: BRAZO_LONGITUD_INFERIOR,
+      anguloReposo: 0, // 0 = sigue derecho, misma dirección que el brazo superior
+      radioProximal: BRAZO_RADIO_CODO,
+      radioDistal: BRAZO_RADIO_DISTAL,
+    },
+  ];
+  const raiz = { x: signo * MEDIDAS_TORSO.hombro.x, y: MEDIDAS_TORSO.hombro.y, anguloMundo: 0 };
+  const [huesoBrazo, huesoAntebrazo] = huesos;
+
+  // Balanceo de reposo real (Fase 4, docs/PROJECT_ROADMAP.md) — frame-driven vía
+  // evaluarFK, no un <g rotate> suelto: prueba que el rig se anima de verdad, no
+  // solo que acepta una pose fija. Desfasado por brazo (signo) con una fase que es
+  // múltiplo de 180° para que en el frame 0 el balanceo valga exactamente 0 — así
+  // una previsualización estática (`remotion still`, frame 0 por defecto) sigue
+  // mostrando la pose de reposo exacta, sin importar que el personaje "ya esté
+  // animado". Si el llamador pasa una pose explícita (anguloHombro/anguloCodo,
+  // como en las pruebas de pose de más arriba), esa pose GANA — no se le suma el
+  // balanceo, para que una pose deliberada no quede temblando.
+  // ctx.animar=false (equivalente a "Personaje animado" apagado en la demo) ->
+  // sin balanceo, igual que breath/blink/look en CharacterPuppet. Un clip (Fase 5)
+  // tiene la prioridad más alta: si lo hay, ni el balanceo ni anguloHombro/
+  // anguloCodo se aplican para ese hueso.
+  const clipsAngulos = angulosDeClips(clips, ctx.frame, signo);
+  const faseBalanceo = signo === 1 ? 0 : Math.PI;
+  const balanceoHombro = ctx.animar && clipsAngulos?.brazo === undefined && anguloHombro === undefined ? Math.sin(ctx.frame * 0.05 + faseBalanceo) * 3 : 0;
+  const balanceoCodo = ctx.animar && clipsAngulos?.antebrazo === undefined && anguloCodo === undefined ? Math.sin(ctx.frame * 0.07 + faseBalanceo) * 2 : 0;
+
+  const angulosLocales: Record<string, number> = {
+    brazo: (clipsAngulos?.brazo ?? anguloHombro ?? huesoBrazo.anguloReposo) + balanceoHombro,
+    antebrazo: (clipsAngulos?.antebrazo ?? anguloCodo ?? huesoAntebrazo.anguloReposo) + balanceoCodo,
+  };
+  const pose = evaluarFK(huesos, raiz, angulosLocales);
+  const brazo = pose.brazo;
+  const antebrazo = pose.antebrazo;
+  return (
+    <g>
+      <FormaAhusada baseX={brazo.proximal.x} baseY={brazo.proximal.y} baseR={huesoBrazo.radioProximal} puntaX={brazo.distal.x} puntaY={brazo.distal.y} puntaR={huesoBrazo.radioDistal} color="url(#lucia-hoodie)" />
+      <FormaAhusada baseX={antebrazo.proximal.x} baseY={antebrazo.proximal.y} baseR={huesoAntebrazo.radioProximal} puntaX={antebrazo.distal.x} puntaY={antebrazo.distal.y} puntaR={huesoAntebrazo.radioDistal} color="url(#lucia-hoodie)" />
+      <circle cx={antebrazo.distal.x} cy={antebrazo.distal.y + 2} r={10} fill="url(#lucia-piel)" stroke={CONTORNO} strokeWidth={2.5} />
+      {/* cap del hombro: SÍ con contorno — contra el torso se lee como el hombro
+          redondeado (igual que en la prueba de PruebaHombroFK). El cap del codo
+          NO lleva contorno propio a propósito: un círculo con su propio contorno
+          en la mitad del brazo se ve como una articulación mecánica (bola), no
+          como un codo — solo necesita el relleno para tapar el pliegue, el
+          contorno de los 2 huesos ya delimita la silueta. */}
+      <circle cx={brazo.proximal.x} cy={brazo.proximal.y} r={huesoBrazo.radioProximal} fill="url(#lucia-hoodie)" stroke={CONTORNO} strokeWidth={3} />
+      <circle cx={antebrazo.proximal.x} cy={antebrazo.proximal.y} r={huesoAntebrazo.radioProximal} fill="url(#lucia-hoodie)" />
+    </g>
+  );
 }
 
 function Cuello() {
@@ -272,23 +383,46 @@ function Mejillas() {
 }
 
 export const LUCIA: Omit<PersonajeDef, "id"> = {
+  metadatos: {
+    id: "character_human_lucia_001",
+    version: 2,
+    tags: ["personaje", "humano", "biped"],
+    capabilities: ["idle", "blink", "talk", "look"],
+    descripcion:
+      "Humana bípeda — torso+brazos como una sola curva cerrada (tangentesExternas), primera referencia para el generador paramétrico de la Fase 3.",
+  },
   colorPlaceholder: HOODIE_CLARO,
   cabezaPivot: { x: CABEZA_X, y: CABEZA_Y },
   apendice: { render: () => null },
   prop: { render: () => null },
 
   cuerpo: {
-    render: () => (
-      <g>
-        <Degradados />
-        <Pierna signo={-1} />
-        <Pierna signo={1} />
-        <TorsoYBrazos />
-        <Mano signo={-1} />
-        <Mano signo={1} />
-        <Cuello />
-      </g>
-    ),
+    // Despacho de ctx.clips (Fase 7, docs/PROJECT_ROADMAP.md) por `categoria` — es
+    // la pieza específica de ESTE personaje (ContextoAnimacion solo transporta los
+    // clips, no sabe de huesos): "gesto" va al brazo derecho (convención de autor
+    // de CLIP_SALUDAR/CLIP_SENALAR, ver esos archivos), "locomocion" va a AMBAS
+    // piernas, la izquierda con medio ciclo de desfase (mismo patrón ya demostrado
+    // a mano en la Fase 5 — aquí queda conectado de verdad al spec, no a código
+    // editado para la demo).
+    render: (ctx) => {
+      const gesto = ctx.clips?.find((c) => c.categoria === "gesto");
+      const locomocion = ctx.clips?.find((c) => c.categoria === "locomocion");
+      const frameClip = ctx.clipFrame ?? ctx.frame;
+      const ctxPiernaIzq = locomocion ? { ...ctx, frame: frameClip + locomocion.duracionFrames / 2 } : ctx;
+      const ctxPiernaDer = locomocion ? { ...ctx, frame: frameClip } : ctx;
+      const ctxBrazoDer = gesto ? { ...ctx, frame: frameClip } : ctx;
+      return (
+        <g>
+          <Degradados />
+          <Pierna signo={-1} ctx={ctxPiernaIzq} clips={locomocion ? [locomocion] : undefined} />
+          <Pierna signo={1} ctx={ctxPiernaDer} clips={locomocion ? [locomocion] : undefined} />
+          <Torso />
+          <Brazo signo={-1} ctx={ctx} />
+          <Brazo signo={1} ctx={ctxBrazoDer} clips={gesto ? [gesto] : undefined} />
+          <Cuello />
+        </g>
+      );
+    },
   },
 
   cabeza: {

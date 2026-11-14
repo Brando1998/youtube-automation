@@ -170,7 +170,16 @@
                     "properties": {
                       "id": { "type": "string" },
                       "posicion": { "type": "array", "items": { "type": "number" }, "minItems": 2, "maxItems": 2, "description": "[x,y] normalizado 0-1 dentro del cuadro." },
-                      "escala": { "type": "number", "default": 1.0 }
+                      "escala": { "type": "number", "default": 1.0 },
+                      "gesto": {
+                        "type": "object",
+                        "description": "Animación de cuerpo (biblioteca de clips, ver apps/remotion-ilustrado/src/engine/animation/clips/registro.ts) que reproduce este personaje durante la toma — opcional, si no se da el personaje queda en su pose de reposo (con balanceo idle si `animar` está activo). Solo tiene efecto en personajes con rig de huesos reales (hoy: humanos bípedos, ver character_human_lucia_001) — en otros tipos de personaje se ignora silenciosamente.",
+                        "required": ["clip_id"],
+                        "properties": {
+                          "clip_id": { "type": "string", "description": "id de un clip real del registro, p.ej. 'saludar', 'caminar', 'senalar'. Un id desconocido se ignora (el personaje queda en reposo), no es un error de validación del schema." },
+                          "inicio_frame": { "type": "integer", "default": 0, "description": "Frame DE LA TOMA (no del episodio) en el que arranca el clip — permite que el gesto empiece a mitad de la toma en vez de desde el primer frame." }
+                        }
+                      }
                     }
                   }
                 },

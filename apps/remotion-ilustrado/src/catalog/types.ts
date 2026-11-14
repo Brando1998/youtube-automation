@@ -21,9 +21,32 @@ export interface CapaFondo {
  * producción) — capas en profundidad, puntos de luz, y origen de humo si aplica. */
 export interface FondoDef {
   id: string;
+  /** Metadatos de registro (Fase 6) — mismo campo que PersonajeDef, ver
+   * MetadatosActivo. Opcional, mismo criterio: no retroactivo a la fuerza. */
+  metadatos?: MetadatosActivo;
   capas: CapaFondo[];
   luces?: LuzDef[];
   humoOrigen?: { x: number; y: number; depth: number };
+}
+
+/**
+ * Metadatos de catálogo (equivalente a `AssetDefinition` de
+ * docs/PROJECT_ROADMAP.md Fase 1, sección 4.2 del plan maestro) — primera semilla
+ * del registro de activos real. Opcional a propósito: los 3 personajes existentes
+ * (tito/rocco/lucia) no lo tenían y deben seguir compilando/renderizando igual;
+ * se puebla hacia adelante, no retroactivamente a la fuerza.
+ */
+export interface MetadatosActivo {
+  /** Identificador único y estable del activo, ej. "character_human_lucia_001" —
+   * distinto del `id` de instancia en escena (ese se repite por instancia; este no). */
+  id: string;
+  version: number;
+  tags: string[];
+  /** Qué puede hacer este activo (qué animaciones/slots soporta) — hoy es
+   * descriptivo únicamente, todavía no hay un validador que lo cruce contra la
+   * biblioteca de animaciones (eso llega en la Fase 5/6 del roadmap). */
+  capabilities: string[];
+  descripcion?: string;
 }
 
 /** Definición de un personaje del catálogo (assets/2d/personajes/<id>/puppet.json en
@@ -32,6 +55,8 @@ export interface FondoDef {
  * desde los Asset aprobados agrega cuerpo/cabeza/.../bocas/prop con `src` real. */
 export interface PersonajeDef {
   id: string;
+  /** Metadatos de registro (Fase 1) — opcional por ahora, ver MetadatosActivo. */
+  metadatos?: MetadatosActivo;
   colorPlaceholder?: string;
   cabezaPivot?: Pivote;
   propPivot?: Pivote;

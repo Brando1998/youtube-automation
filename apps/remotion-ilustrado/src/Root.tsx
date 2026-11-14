@@ -4,6 +4,8 @@ import { PruebaEfectos } from "./compositions/PruebaEfectos";
 import { PruebaEpisodeSpec } from "./compositions/PruebaEpisodeSpec";
 import { PruebaAudioReal } from "./compositions/PruebaAudioReal";
 import { PruebaVector } from "./compositions/PruebaVector";
+import { PruebaCuerposHumanoides } from "./compositions/PruebaCuerposHumanoides";
+import { PruebaHombroFK } from "./compositions/PruebaHombroFK";
 import { PreviewPersonaje, type PreviewPersonajeProps } from "./compositions/PreviewPersonaje";
 import { PreviewFondo, type PreviewFondoProps } from "./compositions/PreviewFondo";
 import { PreviewObjeto, type PreviewObjetoProps } from "./compositions/PreviewObjeto";
@@ -58,6 +60,22 @@ export const RemotionRoot: React.FC = () => {
         id="PruebaVector"
         component={PruebaVector}
         durationInFrames={150}
+        fps={30}
+        width={540}
+        height={960}
+      />
+      <Composition
+        id="PruebaCuerposHumanoides"
+        component={PruebaCuerposHumanoides}
+        durationInFrames={1}
+        fps={30}
+        width={540}
+        height={960}
+      />
+      <Composition
+        id="PruebaHombroFK"
+        component={PruebaHombroFK}
+        durationInFrames={1}
         fps={30}
         width={540}
         height={960}

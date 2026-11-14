@@ -46,6 +46,20 @@ ANTHROPIC_VERSION = "bedrock-2023-05-31"
 # con confianza el precio por token de Nova/Claude en Bedrock en esta sesión).
 COSTO_PLACEHOLDER_TEXTO_USD = 0.05
 
+# Catálogo de clips de animación reales (Fase 7, docs/PROJECT_ROADMAP.md) —
+# apps/remotion-ilustrado/src/engine/animation/clips/registro.ts es la fuente de
+# verdad (TypeScript, no importable desde Python); duplicado a mano aquí a
+# propósito, igual que el comentario de arriba sobre COSTO_PLACEHOLDER_TEXTO_USD —
+# con solo 3 clips no se justifica un paso de build que genere este catálogo
+# (como sí hace scripts/generar_registry.mjs para assets); si la biblioteca crece
+# bastante, generar esto desde el mismo registro de TypeScript en vez de
+# mantenerlo a mano en 2 lugares.
+CLIPS_DISPONIBLES = [
+    {"clip_id": "saludar", "categoria": "gesto", "descripcion": "agita un brazo en señal de saludo"},
+    {"clip_id": "senalar", "categoria": "gesto", "descripcion": "levanta y extiende un brazo para señalar algo"},
+    {"clip_id": "caminar", "categoria": "locomocion", "descripcion": "ciclo de caminata (ambas piernas alternadas)"},
+]
+
 
 def cargar_schema():
     with open(SCHEMA_PATH, "r", encoding="utf-8") as f:
@@ -70,6 +84,16 @@ def construir_system_prompt(schema, estilo, modo_voz, personajes_catalogo):
             "Catálogo de personajes ya existentes (usa estos ids/asset_ref tal cual, "
             "no inventes otros para los mismos personajes): "
             + json.dumps(personajes_catalogo, ensure_ascii=False)
+        )
+    if estilo == "ilustrado":
+        partes.append(
+            "Clips de animación REALES disponibles para el campo "
+            "render.ilustrado.personajes_en_escena[].gesto.clip_id (un clip_id que "
+            "no esté en esta lista se ignora en el render — el personaje queda en "
+            "reposo, no es un error, pero tampoco logra el efecto pedido; preferí "
+            "usar solo los de esta lista). Solo tiene efecto en personajes con rig "
+            "de huesos reales (hoy: humanos bípedos como 'lucia'): "
+            + json.dumps(CLIPS_DISPONIBLES, ensure_ascii=False)
         )
     return "\n\n".join(partes)
 

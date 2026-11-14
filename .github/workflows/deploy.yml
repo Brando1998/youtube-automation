@@ -1,0 +1,82 @@
+name: Deploy a EC2 (youtube-automation)
+
+# Despliegue a la instancia EC2 existente (cuenta aws-sotranscolombianos, ver
+# docs/PROGRESS.md) — NO provisiona infraestructura nueva, solo sincroniza
+# código y reinicia el servicio ya configurado (systemd
+# youtube-automation-web.service + Postgres vía docker compose, ambos creados
+# a mano una vez). Corre en push a main; también se puede disparar a mano.
+on:
+  push:
+    branches: [main]
+  workflow_dispatch: {}
+
+concurrency:
+  group: deploy-ec2
+  cancel-in-progress: false
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Preparar llave SSH
+        run: |
+          install -m 600 -D /dev/null ~/.ssh/deploy_key
+          echo "${{ secrets.EC2_SSH_KEY }}" > ~/.ssh/deploy_key
+          ssh-keyscan -H "${{ secrets.EC2_HOST }}" >> ~/.ssh/known_hosts 2>/dev/null
+
+      - name: Sincronizar código (rsync, sin node_modules/.venv/datos reales)
+        run: |
+          rsync -az --delete \
+            --exclude='.git' \
+            --exclude='.github' \
+            --exclude='node_modules' \
+            --exclude='.venv' \
+            --exclude='__pycache__' \
+            --exclude='*.pyc' \
+            --exclude='apps/web/.env' \
+            --exclude='infra/.env' \
+            --exclude='apps/web/data' \
+            --exclude='apps/pipeline_audio/*.venv' \
+            --exclude='*.png' \
+            -e "ssh -i ~/.ssh/deploy_key -o UserKnownHostsFile=~/.ssh/known_hosts" \
+            ./ "${{ secrets.EC2_USER }}@${{ secrets.EC2_HOST }}:~/youtube-automation/repo/"
+
+      - name: Escribir .env del backend desde los secrets
+        run: |
+          ssh -i ~/.ssh/deploy_key -o UserKnownHostsFile=~/.ssh/known_hosts "${{ secrets.EC2_USER }}@${{ secrets.EC2_HOST }}" \
+            "cat > ~/youtube-automation/repo/apps/web/.env && chmod 600 ~/youtube-automation/repo/apps/web/.env" <<EOF
+          DATABASE_URL=${{ secrets.DATABASE_URL }}
+          SESSION_SECRET=${{ secrets.SESSION_SECRET }}
+          DATA_DIR=/home/${{ secrets.EC2_USER }}/youtube-automation/repo/apps/web/data
+          EOF
+
+      - name: Instalar dependencias (Python + Node) y regenerar el registry
+        run: |
+          ssh -i ~/.ssh/deploy_key -o UserKnownHostsFile=~/.ssh/known_hosts "${{ secrets.EC2_USER }}@${{ secrets.EC2_HOST }}" '
+            set -e
+            ~/youtube-automation/.venv/bin/pip install -q -r ~/youtube-automation/repo/apps/web/requirements.txt
+            cd ~/youtube-automation/repo/apps/remotion-ilustrado
+            npm install --no-audit --no-fund
+            node scripts/generar_registry.mjs
+          '
+
+      - name: Levantar Postgres (docker compose) y migrar
+        run: |
+          ssh -i ~/.ssh/deploy_key -o UserKnownHostsFile=~/.ssh/known_hosts "${{ secrets.EC2_USER }}@${{ secrets.EC2_HOST }}" '
+            set -e
+            cd ~/youtube-automation/repo/infra
+            sudo docker compose up -d
+            cd ~/youtube-automation/repo/apps/web
+            ~/youtube-automation/.venv/bin/alembic upgrade head
+          '
+
+      - name: Reiniciar el backend (systemd)
+        run: |
+          ssh -i ~/.ssh/deploy_key -o UserKnownHostsFile=~/.ssh/known_hosts "${{ secrets.EC2_USER }}@${{ secrets.EC2_HOST }}" '
+            sudo systemctl restart youtube-automation-web.service
+            sleep 3
+            sudo systemctl is-active youtube-automation-web.service
+            curl -sf -o /dev/null -w "login HTTP %{http_code}\n" http://127.0.0.1:8000/login
+          '

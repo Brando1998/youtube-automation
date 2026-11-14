@@ -1,8 +1,33 @@
 import type React from "react";
 import { staticFile, useCurrentFrame } from "remotion";
 import { smooth } from "../easing";
+import type { ClipAnimacion } from "../engine/animation/types";
 
 export type VisemaCode = "reposo" | "A" | "E" | "O" | "MBP" | "FV" | "L";
+
+/** Lo que CharacterPuppet ya sabe por frame (animar/frame) y que cualquier parte
+ * puede querer usar para animarse por su cuenta (Fase 4, docs/PROJECT_ROADMAP.md
+ * — antes Lucía llamaba a useCurrentFrame() por su cuenta dentro de su propio
+ * cuerpo.render(), funcionaba pero no era un canal "oficial"; esto lo es). Un
+ * `render` que no lo necesita simplemente no declara el parámetro — una función
+ * `() => X` sigue siendo válida donde se espera `(ctx) => X`, no rompe a los
+ * personajes existentes. */
+export interface ContextoAnimacion {
+  animar: boolean;
+  frame: number;
+  /** Clips activos (Fase 5/7, docs/PROJECT_ROADMAP.md) que un `render` puede
+   * elegir aplicar — cada personaje decide QUÉ hueso usa cada clip (p.ej.
+   * lucia.tsx despacha por `categoria`: "gesto" al brazo derecho, "locomocion" a
+   * ambas piernas); `CharacterPuppet`/`ContextoAnimacion` solo los transporta, no
+   * sabe de huesos. Un `render` que no los necesita simplemente no los lee —
+   * mismo criterio de opcionalidad que el resto de este contrato. */
+  clips?: ClipAnimacion[];
+  /** Frame LOCAL del/de los clip(s) activos — independiente de `frame` (que sigue
+   * siendo el reloj real de breathing/blink/look). Permite que un gesto empiece a
+   * mitad de una toma (`inicioFrame` del spec) sin desincronizar el resto del
+   * personaje. Si no se pasa, quien evalúa el clip cae a `frame`. */
+  clipFrame?: number;
+}
 
 export interface ParteVisual {
   /** PNG con fondo transparente, ruta relativa a `public/` del app Remotion (se
@@ -12,7 +37,7 @@ export interface ParteVisual {
   /** Forma vectorial dibujada por código (biblioteca en `library/`, mismo patrón
    * que `CapaFondo.render` en catalog/types.ts) — el camino real para assets
    * nuevos: sin llamadas a IA de imagen, consistente por construcción. */
-  render?: () => React.ReactNode;
+  render?: (ctx: ContextoAnimacion) => React.ReactNode;
 }
 
 export interface Pivote {
@@ -64,6 +89,14 @@ export interface CharacterPuppetProps {
   /** false = pose estática, sin breathing/blink/swing (equivalente a desactivar
    * "Personaje animado" en la demo). */
   animar?: boolean;
+  /** Clips activos para este personaje en este momento (Fase 7, ver
+   * ContextoAnimacion) — resueltos por el llamador (EpisodeRenderer) desde el
+   * `gesto`/`locomocion` del spec, no por CharacterPuppet. */
+  clips?: ClipAnimacion[];
+  /** Frame en el que empezó el gesto activo (spec: `gesto.inicioFrame`) — se resta
+   * de `frame` para dar `ctx.clipFrame`, así un gesto que empieza a mitad de la
+   * toma reproduce su propio clip desde su frame 0, no desde el frame de la toma. */
+  clipsInicioFrame?: number;
 }
 
 const BLINK_CURVE = [0.5, 0.12, 0.12, 0.5];
@@ -77,12 +110,12 @@ function visemaActivo(visemas: Segmento[] | undefined, frame: number): VisemaCod
   return "reposo";
 }
 
-function Placeholder({ parte, fallback }: { parte?: ParteVisual; fallback: React.ReactNode }) {
+function Placeholder({ parte, fallback, ctx }: { parte?: ParteVisual; fallback: React.ReactNode; ctx: ContextoAnimacion }) {
   if (parte?.src) {
     return <image href={staticFile(parte.src)} />;
   }
   if (parte?.render) {
-    return <>{parte.render()}</>;
+    return <>{parte.render(ctx)}</>;
   }
   return <>{fallback}</>;
 }
@@ -113,6 +146,8 @@ export function CharacterPuppet({
   mirarEnFrame,
   parpadeoEnFrame,
   animar = true,
+  clips,
+  clipsInicioFrame,
 }: CharacterPuppetProps) {
   const frame = useCurrentFrame();
 
@@ -134,18 +169,21 @@ export function CharacterPuppet({
 
   const viseme = visemaActivo(visemas, frame);
   const boca = bocas?.[viseme];
+  const ctx: ContextoAnimacion = { animar, frame, clips, clipFrame: clipsInicioFrame !== undefined ? frame - clipsInicioFrame : undefined };
 
   return (
     <g transform={`translate(${x} ${y}) scale(${escala})`}>
       <g transform={`translate(0 ${breath})`}>
         <Placeholder
           parte={cuerpo}
+          ctx={ctx}
           fallback={<rect x={-45} y={-160} width={90} height={160} rx={30} fill={colorPlaceholder} stroke="#05070A" strokeWidth={4} />}
         />
 
         <g transform={`rotate(${sway} ${apendicePivot.x} ${apendicePivot.y})`}>
           <Placeholder
             parte={apendice}
+            ctx={ctx}
             fallback={<circle cx={apendicePivot.x} cy={apendicePivot.y} r={14} fill="#7a4a2a" stroke="#05070A" strokeWidth={3} />}
           />
         </g>
@@ -153,12 +191,14 @@ export function CharacterPuppet({
         <g transform={`rotate(${look * 5} ${cabezaPivot.x} ${cabezaPivot.y})`}>
           <Placeholder
             parte={cabeza}
+            ctx={ctx}
             fallback={<circle cx={cabezaPivot.x} cy={cabezaPivot.y} r={55} fill="#E8B08B" stroke="#05070A" strokeWidth={4} />}
           />
 
           <g transform={`translate(0 ${-browUp})`}>
             <Placeholder
               parte={cejas}
+              ctx={ctx}
               fallback={
                 <>
                   <rect x={cabezaPivot.x - 32} y={cabezaPivot.y - 20} width={20} height={6} rx={3} fill="#05070A" />
@@ -173,6 +213,7 @@ export function CharacterPuppet({
           >
             <Placeholder
               parte={blink < 0.3 ? ojosCerrados : ojosAbiertos}
+              ctx={ctx}
               fallback={
                 <>
                   <circle cx={cabezaPivot.x - 20} cy={cabezaPivot.y} r={7} fill="#05070A" />
@@ -182,12 +223,13 @@ export function CharacterPuppet({
             />
           </g>
 
-          <Placeholder parte={boca} fallback={<BocaPlaceholder cx={cabezaPivot.x} cy={cabezaPivot.y + 26} viseme={viseme} />} />
+          <Placeholder parte={boca} ctx={ctx} fallback={<BocaPlaceholder cx={cabezaPivot.x} cy={cabezaPivot.y + 26} viseme={viseme} />} />
         </g>
 
         <g transform={`rotate(${swing} ${propPivot.x} ${propPivot.y})`}>
           <Placeholder
             parte={prop}
+            ctx={ctx}
             fallback={<circle cx={propPivot.x} cy={propPivot.y} r={16} fill="#FFC45E" stroke="#05070A" strokeWidth={3} />}
           />
         </g>

@@ -20,7 +20,7 @@ export function PreviewObjeto({ asset_ref }: PreviewObjetoProps) {
         </div>
       ) : (
         <svg viewBox="0 0 540 960" width="100%" height="100%">
-          <g transform="translate(270 480) scale(4)">{def.render?.()}</g>
+          <g transform="translate(270 480) scale(4)">{def.render?.({ animar: false, frame: 0 })}</g>
         </svg>
       )}
     </AbsoluteFill>

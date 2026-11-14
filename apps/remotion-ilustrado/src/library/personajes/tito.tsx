@@ -49,6 +49,13 @@ function Hocico() {
 }
 
 export const TITO: Omit<PersonajeDef, "id"> = {
+  metadatos: {
+    id: "character_hedgehog_tito_001",
+    version: 1,
+    tags: ["personaje", "animal", "erizo", "blob"],
+    capabilities: ["idle", "blink", "talk", "look"],
+    descripcion: "Erizo compacto tipo blob — primer personaje de la biblioteca vectorial.",
+  },
   colorPlaceholder: PIEL,
   cabezaPivot: { x: CABEZA_X, y: CABEZA_Y },
   propPivot: { x: 55, y: -150 },

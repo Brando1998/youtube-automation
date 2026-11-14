@@ -14,6 +14,7 @@ import { Rain } from "./components/Rain";
 import { Lightning } from "./components/Lightning";
 import { CharacterPuppet, type Segmento } from "./components/CharacterPuppet";
 import type { FondoDef, PersonajeDef } from "./catalog/types";
+import { buscarClip } from "./engine/animation/clips/registro";
 import { FONDOS_VECTOR, PERSONAJES_VECTOR } from "./library/registry";
 
 // ---- Tipos mínimos que reflejan episode_spec/schema.json (subset usado aquí) ----
@@ -48,7 +49,14 @@ export interface TomaSpec {
   render?: {
     ilustrado?: {
       capas_fondo?: string[];
-      personajes_en_escena?: { id: string; posicion: [number, number]; escala?: number }[];
+      personajes_en_escena?: {
+        id: string;
+        posicion: [number, number];
+        escala?: number;
+        /** Animación de cuerpo (episode_spec/schema.json) — ver
+         * engine/animation/clips/registro.ts para los clip_id reales disponibles. */
+        gesto?: { clip_id: string; inicio_frame?: number };
+      }[];
       efectos?: {
         humo?: boolean;
         niebla?: boolean;
@@ -186,6 +194,9 @@ export function TomaIlustrada({
             : undefined;
           const lineaActiva = toma.lineas.find((l) => l.hablante === pEscena.id);
           const audio = lineaActiva ? lineasAudio[lineaActiva.id] : undefined;
+          // id desconocido -> undefined -> el personaje queda en reposo, no es un
+          // error (ver episode_spec/schema.json: "se ignora silenciosamente").
+          const clip = pEscena.gesto ? buscarClip(pEscena.gesto.clip_id) : undefined;
           return (
             <ParallaxLayer key={pEscena.id} depth={0.82} camera={camera}>
               <svg viewBox={`0 0 ${W} ${H}`} width="100%" height="100%" preserveAspectRatio="xMidYMid slice">
@@ -207,6 +218,8 @@ export function TomaIlustrada({
                   apendice={def?.apendice}
                   visemas={audio?.visemas}
                   mirarEnFrame={primerEventoFrame}
+                  clips={clip ? [clip] : undefined}
+                  clipsInicioFrame={pEscena.gesto?.inicio_frame ?? 0}
                 />
               </svg>
             </ParallaxLayer>
