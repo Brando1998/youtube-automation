@@ -57,8 +57,9 @@
   </label>
   <button class="btn" id="btn-detectar-necesidades">Detectar necesidades</button>
   <p id="estado-job-necesidades" class="vacio" hidden></p>
+  <label class="fila-check"><input type="checkbox" id="chk-simular-ia-objeto" checked> Simular "Generar con IA" (no gasta en Bedrock)</label>
   <table id="tabla-necesidades" hidden>
-    <thead><tr><th>Necesidad</th><th>Tipo</th><th>Tags</th><th>Coincidencia en la biblioteca</th></tr></thead>
+    <thead><tr><th>Necesidad</th><th>Tipo</th><th>Tags</th><th>Coincidencia en la biblioteca</th><th></th></tr></thead>
     <tbody id="tbody-necesidades"></tbody>
   </table>
   <p id="vacio-necesidades" class="vacio" hidden>Todavía no se detectaron necesidades.</p>
@@ -183,14 +184,46 @@ function renderTablaNecesidades(necesidadesJson) {
     const coincidencia = n.match
       ? `✅ ${n.match.asset_ref} (${n.match.tags_coincidentes} tag${n.match.tags_coincidentes === 1 ? '' : 's'} en común)`
       : '⚠️ nada parecido todavía — hay que construirlo';
+    // "Generar con IA" solo tiene sentido para objetos sin match — personajes
+    // articulados generados por IA quedan fuera de esta fase a propósito (ver
+    // docs/PROJECT_ROADMAP.md: necesitarían anclas/huesos coherentes, mucho más
+    // riesgoso sin validación geométrica).
+    const accion = !n.match && n.tipo === 'objeto'
+      ? `<button class="btn-generar-ia" data-descripcion="${n.descripcion || n.id}" data-tags="${(n.tags || []).join(',')}">Generar con IA</button>`
+      : '';
     tr.innerHTML = `
       <td>${n.descripcion || n.id}</td>
       <td>${n.tipo}</td>
       <td>${(n.tags || []).join(', ')}</td>
       <td>${coincidencia}</td>
+      <td>${accion}</td>
     `;
     tbody.appendChild(tr);
   }
+  tbody.querySelectorAll('.btn-generar-ia').forEach((btn) => {
+    btn.addEventListener('click', async () => {
+      btn.disabled = true;
+      const textoOriginal = btn.textContent;
+      btn.textContent = 'Generando (simulado por defecto)...';
+      try {
+        const job = await apiPost('/jobs', {
+          tipo: 'ia_objeto',
+          simular: document.getElementById('chk-simular-ia-objeto').checked,
+          parametros: { descripcion: btn.dataset.descripcion, tags: btn.dataset.tags.split(',').filter(Boolean) },
+        });
+        pollJob(job.id, (j, err) => {
+          if (err) { btn.textContent = 'Error: ' + err.message; return; }
+          if (j.estado === 'completado') btn.textContent = 'Generado — revisalo en /app/objetos';
+          else if (j.estado === 'fallido') { btn.textContent = textoOriginal; btn.disabled = false; alert('Job falló: ' + (j.error || '')); }
+          else btn.textContent = 'Job: ' + j.estado;
+        });
+      } catch (e) {
+        btn.textContent = textoOriginal;
+        btn.disabled = false;
+        alert(e.message);
+      }
+    });
+  });
 }
 
 async function recargarEpisodio() {

@@ -76,6 +76,23 @@ def aprobar_asset(asset_id: uuid.UUID, tenant_id: uuid.UUID = Depends(get_tenant
         archivo.write_text(json.dumps(datos, ensure_ascii=False, indent=2), encoding="utf-8")
         if asset.tipo in ("parte_personaje", "capa_fondo"):
             asset.metadatos = datos  # mantener la copia en la DB en sync con el archivo
+
+    if asset.tipo == "ia_objeto" and asset.objeto_id is None:
+        # Fase D: el Objeto real recién se crea ACÁ, al aprobar — nunca antes
+        # de que un humano vea el SVG renderizado y decida que sirve. asset_ref
+        # con prefijo "ia/objeto/" (ver EpisodeRenderer.tsx, D4) distingue este
+        # camino del de biblioteca fija/familia paramétrica.
+        metadatos = asset.metadatos or {}
+        objeto = models.Objeto(
+            tenant_id=tenant_id,
+            nombre=metadatos.get("descripcion", "objeto generado por IA")[:200],
+            asset_ref=f"ia/objeto/{asset.id}",
+            estado="aprobado",
+        )
+        db.add(objeto)
+        db.flush()
+        asset.objeto_id = objeto.id
+
     asset.aprobado = True
     db.commit()
     db.refresh(asset)

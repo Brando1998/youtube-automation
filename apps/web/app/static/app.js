@@ -94,6 +94,11 @@ function _nombresDeAsset(asset) {
 }
 
 function _previewAsset(asset, nombre) {
+  if (asset.tipo === 'ia_objeto') {
+    // SVG ya saneado del lado del servidor (apps/web/app/svg_seguro.py, Fase D)
+    // — se embebe directo, no hay archivo que pedir a /archivo para este tipo.
+    return `<div title="${asset.metadatos?.descripcion || ''}" style="width:110px;height:110px;display:inline-block;margin:4px;background:repeating-conic-gradient(#8884 0% 25%,transparent 0% 50%) 0/16px 16px">${asset.metadatos?.svg || ''}</div>`;
+  }
   const url = `/assets/${asset.id}/archivo${nombre ? `?nombre=${encodeURIComponent(nombre)}` : ''}`;
   if (asset.tipo === 'render') return `<video src="${url}" controls style="max-width:220px;display:inline-block;margin:4px"></video>`;
   if (asset.tipo === 'audio') return `<audio src="${url}" controls style="display:inline-block;margin:4px"></audio>`;

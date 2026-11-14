@@ -412,6 +412,30 @@ def _construir_comando(db: Session, job: models.GenerationJob) -> tuple[list[str
             cmd.append("--dry-run")
         return cmd, None, {"necesidades_path": necesidades_path, "episodio_id": episodio_id}
 
+    if job.tipo == "ia_objeto":
+        # Fase D, opción 2 ("crear y revisar objetos desde la app" — solo
+        # cuando la familia paramétrica de la Fase C no alcanza): sin
+        # personaje/objeto/episodio asociado todavía, el Objeto real recién se
+        # crea al aprobar (ver routers/assets.py::aprobar_asset).
+        descripcion = params.get("descripcion")
+        if not descripcion:
+            raise JobError("parametros.descripcion es requerido para ia_objeto")
+        tags = params.get("tags") or []
+        out_dir = tenant_dir / "ia_objetos" / str(job.id)
+        out_dir.mkdir(parents=True, exist_ok=True)
+        out_path = out_dir / "objeto.json"
+        cmd = [
+            sys.executable, str(PIPELINE_SPEC / "generar_objeto_ia.py"),
+            "--descripcion", descripcion,
+            "--tags", ",".join(tags),
+            "--out", str(out_path),
+        ]
+        if "modelo" in params:
+            cmd += ["--modelo", params["modelo"]]
+        if simular:
+            cmd.append("--dry-run")
+        return cmd, None, {"out_path": out_path}
+
     if job.tipo == "hoja_personaje":
         personaje_id = _requiere(job, "personaje_id")
         personaje = db.get(models.Personaje, personaje_id)
@@ -611,6 +635,21 @@ def _post_exito(db: Session, job: models.GenerationJob, contexto: dict, simular:
             bruto = json.loads(necesidades_path.read_text(encoding="utf-8"))
             episodio = db.get(models.Episodio, contexto["episodio_id"])
             episodio.necesidades_json = {"necesidades": emparejar_necesidades(bruto.get("necesidades", []))}
+
+    elif job.tipo == "ia_objeto":
+        out_path: Path = contexto["out_path"]
+        if out_path.exists():
+            resultado = json.loads(out_path.read_text(encoding="utf-8"))
+            # Sin objeto_id todavía a propósito — el Objeto real recién se crea
+            # al aprobar este Asset (routers/assets.py::aprobar_asset), nunca
+            # antes de que un humano lo revise.
+            db.add(models.Asset(
+                tenant_id=job.tenant_id,
+                tipo="ia_objeto",
+                ruta_archivo=str(out_path.relative_to(_tenant_dir(job.tenant_id))),
+                metadatos={"svg": resultado["svg"], "descripcion": resultado["descripcion"], "tags": resultado["tags"]},
+                aprobado=False,
+            ))
 
     elif job.tipo == "hoja_personaje":
         personaje_id = contexto["personaje_id"]

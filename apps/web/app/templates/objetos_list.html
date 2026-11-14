@@ -32,11 +32,25 @@
   previews vectoriales (biblioteca fija o familia) son renders locales — nunca gastan AWS.
 </div>
 
+<div class="panel">
+  <h2 style="margin-top:0">Objetos generados por IA — pendientes de revisión</h2>
+  <p class="vacio" style="padding:0">
+    Se disparan desde "Detectar necesidades" en un episodio, cuando no hay nada parecido ni en la
+    biblioteca ni en ninguna familia paramétrica. Al aprobar acá se crea el Objeto real.
+  </p>
+  <div id="panel-ia-objetos"></div>
+</div>
+
 <div id="lista-objetos"></div>
 <p id="vacio-objetos" class="vacio" hidden>Todavía no hay objetos.</p>
 {% endblock %}
 {% block script %}
 <script>
+async function cargarIaObjetosPendientes() {
+  const assets = await apiGet('/assets?tipo=ia_objeto&pendientes=true');
+  renderPanelAssets(document.getElementById('panel-ia-objetos'), assets);
+}
+
 async function cargarObjetos() {
   const objetos = await apiGet('/objetos');
   const cont = document.getElementById('lista-objetos');
@@ -171,5 +185,6 @@ document.addEventListener('submit', async (ev) => {
 });
 
 cargarObjetos();
+cargarIaObjetosPendientes();
 </script>
 {% endblock %}

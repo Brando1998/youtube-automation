@@ -136,7 +136,7 @@ class ObjetoOut(BaseModel):
 
 class JobCreate(BaseModel):
     tipo: str = Field(
-        pattern="^(episode_spec|detectar_necesidades|hoja_personaje|partes_personaje|fondo|voz_polly|render_episodio"
+        pattern="^(episode_spec|detectar_necesidades|ia_objeto|hoja_personaje|partes_personaje|fondo|voz_polly|render_episodio"
         "|vector_personaje|vector_fondo|vector_objeto)$"
     )
     episodio_id: uuid.UUID | None = None

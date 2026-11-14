@@ -83,6 +83,12 @@ def estimar_detectar_necesidades(max_reintentos: int) -> float:
     return _redondear(COSTO_PLACEHOLDER_TEXTO_USD * max_reintentos)
 
 
+def estimar_objeto_ia(max_reintentos: int) -> float:
+    """Mismo criterio — llamada de texto a Bedrock (ver
+    apps/pipeline_spec/generar_objeto_ia.py, Fase D)."""
+    return _redondear(COSTO_PLACEHOLDER_TEXTO_USD * max_reintentos)
+
+
 def estimar_hoja_personaje() -> float:
     return _redondear(PRECIO_STABLE_IMAGE_CORE_USD)
 
@@ -102,6 +108,8 @@ def estimar_costo_job(tipo: str, params: dict) -> float | None:
         return estimar_episode_spec(int(params.get("max_reintentos", 3)))
     if tipo == "detectar_necesidades":
         return estimar_detectar_necesidades(int(params.get("max_reintentos", 3)))
+    if tipo == "ia_objeto":
+        return estimar_objeto_ia(int(params.get("max_reintentos", 3)))
     # render_episodio y vector_personaje/vector_fondo/vector_objeto caen acá a
     # propósito: todos corren 100% local (Remotion), sin tocar AWS — la biblioteca
     # de personajes/fondos/objetos pasó a dibujarse por código, no se genera más
