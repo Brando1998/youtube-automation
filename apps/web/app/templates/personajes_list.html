@@ -44,6 +44,15 @@ async function cargarPersonajes() {
       </div>
       <p class="vacio" style="padding:0.25rem 0">${p.asset_ref}</p>
       <details>
+        <summary>Generar preview vectorial (biblioteca de código, sin IA de imagen)</summary>
+        <form class="form-vector" data-personaje-id="${p.id}">
+          <label>Archivo .tsx (relativo a apps/remotion-ilustrado, p.ej. library/personajes/lucia.tsx)
+            <input type="text" name="archivo" required placeholder="library/personajes/lucia.tsx">
+          </label>
+          <button type="submit">Generar preview</button>
+        </form>
+      </details>
+      <details>
         <summary>Generar hoja de referencia (Fase A4)</summary>
         <form class="form-hoja" data-personaje-id="${p.id}">
           <label>Sujeto (descripción para el prompt)
@@ -99,6 +108,32 @@ function estadoEl(personajeId) {
 }
 
 document.addEventListener('submit', async (ev) => {
+  if (ev.target.matches('.form-vector')) {
+    ev.preventDefault();
+    const form = ev.target;
+    const personajeId = form.dataset.personajeId;
+    const estado = estadoEl(personajeId);
+    estado.hidden = false;
+    estado.textContent = 'Generando preview (remotion still, sin AWS)...';
+    try {
+      // vector_personaje nunca pasa por AWS (es un render local) — no tiene
+      // checkbox "Simular" a propósito, ver SIN_SIMULAR en pipeline_runner.py.
+      const job = await apiPost('/jobs', {
+        tipo: 'vector_personaje',
+        personaje_id: personajeId,
+        simular: false,
+        parametros: { archivo: form.archivo.value },
+      });
+      pollJob(job.id, (j, err) => {
+        if (err) { estado.textContent = 'Error: ' + err.message; return; }
+        estado.innerHTML = 'Job: ' + badgeEstado(j.estado) + (j.error ? ' — ' + j.error : '');
+        if (j.estado === 'completado') cargarPersonajes();
+      });
+    } catch (e) {
+      estado.textContent = e.message;
+    }
+    return;
+  }
   if (!ev.target.matches('.form-hoja, .form-partes')) return;
   ev.preventDefault();
   const form = ev.target;

@@ -41,6 +41,15 @@ async function cargarFondos() {
       </div>
       <p class="vacio" style="padding:0.25rem 0">${f.asset_ref}</p>
       <details>
+        <summary>Generar preview vectorial (biblioteca de código, sin IA de imagen)</summary>
+        <form class="form-vector" data-fondo-id="${f.id}">
+          <label>Archivo .tsx (relativo a apps/remotion-ilustrado, p.ej. library/fondos/bosque.tsx)
+            <input type="text" name="archivo" required placeholder="library/fondos/bosque.tsx">
+          </label>
+          <button type="submit">Generar preview</button>
+        </form>
+      </details>
+      <details>
         <summary>Generar capas (ver apps/pipeline_2d/fondo_spec.ejemplo.json)</summary>
         <form class="form-fondo-spec" data-fondo-id="${f.id}">
           <label>Spec del fondo (JSON: id/capas/luces/humo_origen)
@@ -78,6 +87,32 @@ document.getElementById('form-fondo').addEventListener('submit', async (ev) => {
 });
 
 document.addEventListener('submit', async (ev) => {
+  if (ev.target.matches('.form-vector')) {
+    ev.preventDefault();
+    const form = ev.target;
+    const fondoId = form.dataset.fondoId;
+    const estado = document.querySelector(`.estado-job[data-fondo-id="${fondoId}"]`);
+    estado.hidden = false;
+    estado.textContent = 'Generando preview (remotion still, sin AWS)...';
+    try {
+      // vector_fondo nunca pasa por AWS (es un render local) — sin checkbox
+      // "Simular" a propósito, ver SIN_SIMULAR en pipeline_runner.py.
+      const job = await apiPost('/jobs', {
+        tipo: 'vector_fondo',
+        fondo_id: fondoId,
+        simular: false,
+        parametros: { archivo: form.archivo.value },
+      });
+      pollJob(job.id, (j, err) => {
+        if (err) { estado.textContent = 'Error: ' + err.message; return; }
+        estado.innerHTML = 'Job: ' + badgeEstado(j.estado) + (j.error ? ' — ' + j.error : '');
+        if (j.estado === 'completado') cargarFondos();
+      });
+    } catch (e) {
+      estado.textContent = e.message;
+    }
+    return;
+  }
   if (!ev.target.matches('.form-fondo-spec')) return;
   ev.preventDefault();
   const form = ev.target;
