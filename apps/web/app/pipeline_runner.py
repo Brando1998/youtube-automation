@@ -357,6 +357,32 @@ def _construir_comando(db: Session, job: models.GenerationJob) -> tuple[list[str
             cmd.append("--dry-run")
         return cmd, None, {"spec_path": spec_path, "episodio_id": episodio_id}
 
+    if job.tipo == "detectar_necesidades":
+        episodio_id = _requiere(job, "episodio_id")
+        episodio = db.get(models.Episodio, episodio_id)
+        if episodio is None:
+            raise JobError("episodio no encontrado")
+        if not episodio.guion_texto:
+            raise JobError("el episodio no tiene guion_texto todavía")
+        out_dir = tenant_dir / "episodios" / str(episodio_id)
+        out_dir.mkdir(parents=True, exist_ok=True)
+        guion_path = out_dir / "guion.txt"
+        guion_path.write_text(episodio.guion_texto, encoding="utf-8")
+        necesidades_path = out_dir / "necesidades.json"
+
+        cmd = [
+            sys.executable, str(PIPELINE_SPEC / "detectar_necesidades.py"),
+            "--guion", str(guion_path),
+            "--out", str(necesidades_path),
+        ]
+        if "modelo" in params:
+            cmd += ["--modelo", params["modelo"]]
+        if "max_tokens" in params:
+            cmd += ["--max-tokens", str(params["max_tokens"])]
+        if simular:
+            cmd.append("--dry-run")
+        return cmd, None, {"necesidades_path": necesidades_path, "episodio_id": episodio_id}
+
     if job.tipo == "hoja_personaje":
         personaje_id = _requiere(job, "personaje_id")
         personaje = db.get(models.Personaje, personaje_id)
@@ -537,6 +563,15 @@ def _post_exito(db: Session, job: models.GenerationJob, contexto: dict, simular:
             episodio = db.get(models.Episodio, contexto["episodio_id"])
             episodio.spec_json = json.loads(spec_path.read_text(encoding="utf-8"))
             episodio.estado = "revision"
+
+    elif job.tipo == "detectar_necesidades":
+        necesidades_path: Path = contexto["necesidades_path"]
+        if necesidades_path.exists():
+            from .matching import emparejar_necesidades  # import local: evita cargar esto si no hace falta
+
+            bruto = json.loads(necesidades_path.read_text(encoding="utf-8"))
+            episodio = db.get(models.Episodio, contexto["episodio_id"])
+            episodio.necesidades_json = {"necesidades": emparejar_necesidades(bruto.get("necesidades", []))}
 
     elif job.tipo == "hoja_personaje":
         personaje_id = contexto["personaje_id"]

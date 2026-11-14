@@ -1,0 +1,28 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "$id": "episode_spec/necesidades_schema.json",
+  "title": "Necesidades visuales de un guion",
+  "description": "Salida del paso de detección (apps/pipeline_spec/detectar_necesidades.py, Fase A del plan de 'fábrica de assets'): qué entidades visuales hacen falta para representar un guion. NO decide asset_ref ni geometría — eso lo resuelve el emparejamiento contra la biblioteca (Python, sin IA) del lado del backend. Si una necesidad no tiene equivalente en la biblioteca, se reporta como falta, no se inventa.",
+  "type": "object",
+  "required": ["necesidades"],
+  "properties": {
+    "necesidades": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "required": ["id", "tipo", "descripcion", "tags"],
+        "properties": {
+          "id": { "type": "string", "description": "Identificador corto y legible dentro de este guion, p.ej. 'persona-1', 'corazon'. No tiene que coincidir con ningún asset_ref real." },
+          "tipo": { "type": "string", "enum": ["personaje", "objeto", "fondo"] },
+          "descripcion": { "type": "string", "description": "Descripción breve en español de qué es esta entidad visual y para qué se usa en el guion." },
+          "tags": {
+            "type": "array",
+            "items": { "type": "string" },
+            "minItems": 1,
+            "description": "Palabras clave simples en español (minúsculas, sin tildes si es posible) que describen esta entidad — se usan para emparejar contra las tags de la biblioteca real, no son decorativas."
+          }
+        }
+      }
+    }
+  }
+}

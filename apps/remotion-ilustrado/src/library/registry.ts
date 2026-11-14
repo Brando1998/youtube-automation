@@ -2,7 +2,7 @@
 // Resuelve los assets vectoriales de la biblioteca (library/) por su asset_ref,
 // para que EpisodeRenderer/EpisodioCompleto los usen aunque --props no los traiga
 // (remotion render necesita JSON puro, un componente de React no se serializa).
-import type { FondoDef, ParteVisual, PersonajeDef } from "../catalog/types";
+import type { FondoDef, ObjetoDef, PersonajeDef } from "../catalog/types";
 
 import { ASSET_REF as REF_0, LUCIA as DEF_0 } from "./personajes/lucia";
 import { ASSET_REF as REF_1, ROCCO as DEF_1 } from "./personajes/rocco";
@@ -19,6 +19,6 @@ export const FONDOS_VECTOR: Record<string, Omit<FondoDef, "id">> = {
   [REF_3]: DEF_3,
 };
 
-export const OBJETOS_VECTOR: Record<string, ParteVisual> = {
+export const OBJETOS_VECTOR: Record<string, Omit<ObjetoDef, "id">> = {
 
 };

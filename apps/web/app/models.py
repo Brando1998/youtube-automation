@@ -62,6 +62,9 @@ class Episodio(Base):
 
     guion_texto: Mapped[str | None] = mapped_column(Text, nullable=True)
     spec_json: Mapped[dict | None] = mapped_column(JSON, nullable=True)  # episode_spec/schema.json
+    # Salida de detectar_necesidades.py + el emparejamiento de app/matching.py —
+    # necesidades_schema.json con un campo "match" agregado a cada necesidad.
+    necesidades_json: Mapped[dict | None] = mapped_column(JSON, nullable=True)
 
     # Tope de gasto AWS para este episodio (null = sin límite). Cubre lo que es
     # exclusivo de este video (episode_spec, voz_polly, render_episodio) — no la
@@ -145,7 +148,7 @@ class GenerationJob(Base):
     tenant_id: Mapped[uuid.UUID] = mapped_column(ForeignKey("tenants.id"), index=True)
     tipo: Mapped[str] = mapped_column(String(40))
     # hoja_personaje|partes_personaje|fondo|voz_polly|voz_local|render_episodio|
-    # episode_spec|vector_personaje|vector_fondo|vector_objeto
+    # episode_spec|detectar_necesidades|vector_personaje|vector_fondo|vector_objeto
     estado: Mapped[str] = mapped_column(String(20), default="pendiente")
     # pendiente|corriendo|completado|fallido
 

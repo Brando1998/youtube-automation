@@ -6,15 +6,8 @@
  * sección 4.2 del plan maestro ("registrar, buscar por ID, por categoría, por
  * etiquetas, consultar capacidades").
  */
-import { FONDOS_VECTOR, PERSONAJES_VECTOR } from "../../library/registry";
+import { FONDOS_VECTOR, OBJETOS_VECTOR, PERSONAJES_VECTOR } from "../../library/registry";
 import type { EntradaRegistro, TipoActivo } from "./types";
-
-// OBJETOS_VECTOR (ParteVisual) no lleva `metadatos` todavía — ParteVisual es
-// src/render puro (ver components/CharacterPuppet.tsx), no tiene ese campo. Hoy
-// la biblioteca no tiene ningún objeto real (OBJETOS_VECTOR está vacío), así que
-// no se indexa — cuando exista el primer objeto real con metadatos, este índice
-// necesita extender ParteVisual o darle su propio tipo "ObjetoDef", igual que se
-// hizo con Personaje/FondoDef en la Fase 1. No se resuelve en abstracto ahora.
 
 function construirIndice(): EntradaRegistro[] {
   const entradas: EntradaRegistro[] = [];
@@ -23,6 +16,9 @@ function construirIndice(): EntradaRegistro[] {
   }
   for (const [assetRef, def] of Object.entries(FONDOS_VECTOR)) {
     if (def.metadatos) entradas.push({ assetRef, tipo: "fondo", metadatos: def.metadatos });
+  }
+  for (const [assetRef, def] of Object.entries(OBJETOS_VECTOR)) {
+    if (def.metadatos) entradas.push({ assetRef, tipo: "objeto", metadatos: def.metadatos });
   }
   return entradas;
 }

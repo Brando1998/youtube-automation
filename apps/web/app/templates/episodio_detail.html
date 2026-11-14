@@ -35,6 +35,36 @@
 </div>
 
 <div class="panel">
+  <h2 style="margin-top:0">Detectar necesidades</h2>
+  <p class="vacio" style="padding:0">
+    Qué personajes/objetos/fondos hace falta este guion, y si ya existen en la
+    biblioteca o faltan por construir — hacé esto ANTES de generar el episode
+    spec para evitar que referencie algo que no existe.
+  </p>
+  <div class="aviso-simulacion">
+    Por defecto los jobs corren simulados (<code>--dry-run</code>), sin llamar a AWS ni gastar nada.
+  </div>
+  <label class="fila-check">
+    <input type="checkbox" id="chk-simular-necesidades" checked>
+    Simular (no detecta de verdad, solo valida que el pipeline funcione)
+  </label>
+  <label>Modelo
+    <select id="sel-modelo-necesidades">
+      <option value="amazon.nova-micro-v1:0">Nova Micro — el más barato</option>
+      <option value="amazon.nova-lite-v1:0" selected>Nova Lite — recomendado</option>
+      <option value="amazon.nova-pro-v1:0">Nova Pro — mejor calidad</option>
+    </select>
+  </label>
+  <button class="btn" id="btn-detectar-necesidades">Detectar necesidades</button>
+  <p id="estado-job-necesidades" class="vacio" hidden></p>
+  <table id="tabla-necesidades" hidden>
+    <thead><tr><th>Necesidad</th><th>Tipo</th><th>Tags</th><th>Coincidencia en la biblioteca</th></tr></thead>
+    <tbody id="tbody-necesidades"></tbody>
+  </table>
+  <p id="vacio-necesidades" class="vacio" hidden>Todavía no se detectaron necesidades.</p>
+</div>
+
+<div class="panel">
   <h2 style="margin-top:0">Episode spec</h2>
   <div class="aviso-simulacion">
     Por defecto los jobs corren simulados (<code>--dry-run</code>), sin llamar a AWS ni gastar nada.
@@ -140,11 +170,35 @@ async function cargarJobs() {
   }
 }
 
+function renderTablaNecesidades(necesidadesJson) {
+  const tabla = document.getElementById('tabla-necesidades');
+  const tbody = document.getElementById('tbody-necesidades');
+  const vacioEl = document.getElementById('vacio-necesidades');
+  const necesidades = necesidadesJson?.necesidades ?? [];
+  tbody.innerHTML = '';
+  tabla.hidden = necesidades.length === 0;
+  vacioEl.hidden = necesidades.length > 0;
+  for (const n of necesidades) {
+    const tr = document.createElement('tr');
+    const coincidencia = n.match
+      ? `✅ ${n.match.asset_ref} (${n.match.tags_coincidentes} tag${n.match.tags_coincidentes === 1 ? '' : 's'} en común)`
+      : '⚠️ nada parecido todavía — hay que construirlo';
+    tr.innerHTML = `
+      <td>${n.descripcion || n.id}</td>
+      <td>${n.tipo}</td>
+      <td>${(n.tags || []).join(', ')}</td>
+      <td>${coincidencia}</td>
+    `;
+    tbody.appendChild(tr);
+  }
+}
+
 async function recargarEpisodio() {
   const ep = await apiGet(`/episodios/${EPISODIO_ID}`);
   document.getElementById('spec-viewer').textContent = ep.spec_json
     ? JSON.stringify(ep.spec_json, null, 2)
     : '(todavía no se generó)';
+  renderTablaNecesidades(ep.necesidades_json);
 
   document.getElementById('costo-acumulado').textContent = `$${ep.costo_acumulado_usd.toFixed(4)}`;
   const presupuestoEl = document.getElementById('presupuesto-actual');
@@ -171,6 +225,36 @@ document.getElementById('btn-eliminar-episodio').addEventListener('click', async
   } catch (e) {
     alert('No se pudo eliminar: ' + e.message);
   }
+});
+
+document.getElementById('btn-detectar-necesidades').addEventListener('click', async () => {
+  const btn = document.getElementById('btn-detectar-necesidades');
+  const simular = document.getElementById('chk-simular-necesidades').checked;
+  const modelo = document.getElementById('sel-modelo-necesidades').value;
+  const estadoEl = document.getElementById('estado-job-necesidades');
+  btn.disabled = true;
+  estadoEl.hidden = false;
+  estadoEl.textContent = 'Creando job...';
+  try {
+    const job = await apiPost('/jobs', {
+      tipo: 'detectar_necesidades', episodio_id: EPISODIO_ID, simular,
+      parametros: { modelo },
+    });
+    pollJob(job.id, async (j, err) => {
+      if (err) { estadoEl.textContent = 'Error consultando el job: ' + err.message; btn.disabled = false; return; }
+      estadoEl.innerHTML = 'Job: ' + badgeEstado(j.estado);
+      if (j.estado === 'completado' || j.estado === 'fallido') {
+        btn.disabled = false;
+        if (j.error) estadoEl.innerHTML += ' — ' + j.error;
+        await recargarEpisodio();
+        await cargarJobs();
+      }
+    });
+  } catch (e) {
+    estadoEl.textContent = e.message;
+    btn.disabled = false;
+  }
+  await cargarJobs();
 });
 
 document.getElementById('btn-generar-spec').addEventListener('click', async () => {

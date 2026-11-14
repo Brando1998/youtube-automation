@@ -49,6 +49,7 @@ class EpisodioOut(BaseModel):
     estado: str
     guion_texto: str | None
     spec_json: dict | None
+    necesidades_json: dict | None
     presupuesto_usd: float | None
     # No es una columna — se calcula en el router (suma de UsageLog de los jobs de
     # este episodio) y se adjunta al objeto ORM antes de serializar.
@@ -111,7 +112,7 @@ class ObjetoOut(BaseModel):
 
 class JobCreate(BaseModel):
     tipo: str = Field(
-        pattern="^(episode_spec|hoja_personaje|partes_personaje|fondo|voz_polly|render_episodio"
+        pattern="^(episode_spec|detectar_necesidades|hoja_personaje|partes_personaje|fondo|voz_polly|render_episodio"
         "|vector_personaje|vector_fondo|vector_objeto)$"
     )
     episodio_id: uuid.UUID | None = None

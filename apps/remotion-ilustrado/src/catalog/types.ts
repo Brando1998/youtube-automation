@@ -71,6 +71,17 @@ export interface PersonajeDef {
   apendice?: ParteVisual;
 }
 
+/** Definición de un objeto/prop reutilizable del catálogo (library/objetos/) —
+ * mismo patrón que FondoDef/PersonajeDef. A diferencia de esos dos, un objeto es
+ * una sola `ParteVisual` (sin partes compuestas) — ver PreviewObjeto.tsx, que ya
+ * renderiza `def.render?.(ctx)` directo. `metadatos` es lo que faltaba para que
+ * engine/registry pueda indexar objetos por tag/capacidad (antes OBJETOS_VECTOR
+ * era `Record<string, ParteVisual>` puro, sin ningún lugar donde guardar tags). */
+export interface ObjetoDef extends ParteVisual {
+  id: string;
+  metadatos?: MetadatosActivo;
+}
+
 /** Catálogo real completo, tal como lo escribe
  * apps/web/app/pipeline_runner.py::preparar_catalogo_remotion() antes de invocar
  * `remotion render` — ver EpisodioCompleto.tsx. */
