@@ -20,6 +20,26 @@
     }
   },
   {
+    "assetRef": "2d/personajes/persona-generica",
+    "tipo": "personaje",
+    "metadatos": {
+      "id": "character_human_generic_001",
+      "version": 1,
+      "tags": [
+        "personaje",
+        "humano",
+        "biped",
+        "persona",
+        "generico"
+      ],
+      "capabilities": [
+        "idle",
+        "blink"
+      ],
+      "descripcion": "Persona genérica sin nombre — para guiones que mencionan 'una persona' sin más detalle (videos explicativos), sin rig articulado."
+    }
+  },
+  {
     "assetRef": "2d/personajes/rocco",
     "tipo": "personaje",
     "metadatos": {
@@ -81,6 +101,42 @@
         "luces"
       ],
       "descripcion": "Bosque de noche con cabaña — primer fondo real de la biblioteca vectorial."
+    }
+  },
+  {
+    "assetRef": "2d/objetos/cerebro",
+    "tipo": "objeto",
+    "metadatos": {
+      "id": "object_brain_001",
+      "version": 1,
+      "tags": [
+        "objeto",
+        "cerebro",
+        "mente",
+        "pensamiento",
+        "ideas",
+        "estres"
+      ],
+      "capabilities": [],
+      "descripcion": "Cerebro simple — ícono genérico para temas de mente/pensamiento en videos explicativos."
+    }
+  },
+  {
+    "assetRef": "2d/objetos/corazon",
+    "tipo": "objeto",
+    "metadatos": {
+      "id": "object_heart_001",
+      "version": 1,
+      "tags": [
+        "objeto",
+        "corazon",
+        "salud",
+        "emocion",
+        "amor",
+        "latido"
+      ],
+      "capabilities": [],
+      "descripcion": "Corazón simple — ícono genérico para temas de salud/emoción en videos explicativos."
     }
   }
 ]
